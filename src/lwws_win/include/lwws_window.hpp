@@ -28,7 +28,7 @@ namespace LWWS {
 
         MouseButton _currentMouseButtonPressed = MouseButton::NoButton;
         std::set<int> _currentIntPressed = {};
-        std::unordered_map<TViewportId, LWWS_Viewport> _viewports;
+        std::unordered_map<TViewportId, LWWS_Viewport&> _viewports;
         UT::Ut_RGBColor _bgColor;
         std::random_device _randomDevice;
         std::uniform_int_distribution<std::mt19937::result_type> _dist01;
@@ -49,7 +49,6 @@ namespace LWWS {
             int width, 
             int height, 
             const UT::Ut_RGBColor& bgColor,
-            const std::unordered_map<TViewportId, LWWS_Viewport>& viewports,
             bool disableMousePointerOnHover, 
             int hoverTimeoutMS,
             bool bindSamples
@@ -81,7 +80,7 @@ namespace LWWS {
         }),
         _currentMouseButtonPressed(MouseButton::NoButton),
         _currentIntPressed({}),
-        _viewports(viewports),
+        _viewports({}),
         _bgColor(bgColor),
         _dist01(std::uniform_int_distribution<std::mt19937::result_type>(0,1)),
         _randomGenerator(std::mt19937(_randomDevice()))
@@ -135,7 +134,7 @@ namespace LWWS {
             return initWidth*initHeight*4;
         }
 
-        const std::unordered_map<TViewportId, LWWS_Viewport>& viewports() {
+        const std::unordered_map<TViewportId, LWWS_Viewport&>& viewports() {
             return _viewports;
         }
 
@@ -154,14 +153,13 @@ namespace LWWS {
             return _viewports.contains(viewportId);
         }
 
-        virtual void addViewport(const std::unordered_map<TViewportId, LWWS_Viewport>& viewports, bool emitPaint=true){
-            for(const auto& vp : viewports){
-                if(_viewports.contains(vp.first)){
-                    UT::Ut_Logger::RuntimeError(typeid(this), "ViewportIds [{0}] area already in use. {1} given.", UT::Ut_Utils::toStr_unorderedMapKeys(_viewports), vp.first);
-                }
-                _viewports.insert({vp.first, vp.second});
-                _viewports.at(vp.first).setParentState(&_mouseState, &_windowState);
+        virtual void addViewport(LWWS_Viewport& viewport, bool emitPaint=true){
+            if(_viewports.contains(viewport.viewportId())){
+                UT::Ut_Logger::RuntimeError(typeid(this), "ViewportIds [{0}] area already in use. {1} given.", UT::Ut_Utils::toStr_unorderedMapKeys(_viewports), viewport.viewportId());
             }
+            _viewports.insert({viewport.viewportId(), viewport});
+            _viewports.at(viewport.viewportId()).setParentState(&_mouseState, &_windowState);
+
             if(emitPaint) emit_windowEvent_Paint();
         }
 

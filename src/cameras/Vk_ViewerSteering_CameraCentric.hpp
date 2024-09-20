@@ -13,7 +13,7 @@ namespace VK5 {
 	public:
 
 		virtual Vk_SteeringType steeringType() const {
-			return Vk_SteeringType::CAMERA_CENTRIC;
+			return Vk_SteeringType::CameraCentric;
 		}
 
 		virtual void onMouseAction(Vk_CameraState& cameraState, int px, int py, int dx, int dy, float dz, const std::set<int>& pressedKeys, LWWS::MouseButton mouseButton, LWWS::ButtonOp op, LWWS::MouseAction mouseAction, void* aptr) {

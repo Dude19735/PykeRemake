@@ -10,26 +10,8 @@
 #include <cstring>
 
 namespace LWWS {
-    // class RedrawQueue {
-    //     std::queue<int> _queue;
-    //     std::mutex _mutex;
-    // public:
-    //     RedrawQueue(){}
-    //     void pushRedrawEvent(){
-    //         auto lock = std::lock_guard<std::mutex>(_mutex);
-    //         _queue.push(1);
-    //     }
-
-    //     bool hasRedrawEvent(){
-    //         auto lock = std::lock_guard<std::mutex>(_mutex);
-    //         if(_queue.size() == 0) return false;
-    //         _queue.pop();
-    //         return true;
-    //     }
-        
-    // };
-
     class LWWS_Window_X11: public LWWS_Window{
+    private:
         Display* _display;
         Window _window;
         std::set<Window> _x11viewportsS;
@@ -56,14 +38,13 @@ namespace LWWS {
             int width,
             int height,
             const UT::Ut_RGBColor& bgColor,
-            const std::unordered_map<TViewportId, LWWS_Viewport>& viewports,
             bool resizable,
             bool disableMousePointerOnHover=false,
             int hoverTimeoutMS=500,
             bool bindSamples=false
         ) 
         : 
-        LWWS_Window(width, height, bgColor, viewports, disableMousePointerOnHover, hoverTimeoutMS, bindSamples),
+        LWWS_Window(width, height, bgColor, disableMousePointerOnHover, hoverTimeoutMS, bindSamples),
         _display(nullptr),
         _window(0),
         _x11viewportsS({}),
@@ -253,14 +234,13 @@ namespace LWWS {
             return true;
         }
 
-        void addViewport(const std::unordered_map<TViewportId, LWWS_Viewport>& viewports, bool emitPaint=true) {
-            LWWS_Window::addViewport(viewports, false);
+        void addViewport(LWWS_Viewport& viewport, bool emitPaint=true) {
+            LWWS_Window::addViewport(viewport, false);
 
-            for(auto& vp : viewports){
-                auto newWin = createX11Window(vp.first);
-                XClearWindow(_display, newWin);
-                XMapRaised(_display, newWin);
-            }
+            auto newWin = createX11Window(viewport.viewportId());
+            XClearWindow(_display, newWin);
+            XMapRaised(_display, newWin);
+
             if(emitPaint) emit_windowEvent_Paint();
         }
 

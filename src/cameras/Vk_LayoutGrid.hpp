@@ -11,6 +11,26 @@
 namespace VK5 {
 
     class Vk_LayoutGrid: public I_Layout {
+    private:
+        struct elem {
+            int gridPosH, gridPosW;
+            Vk_LayoutElem layoutElem;
+
+            bool const operator==(const elem &other) const {
+                return gridPosW == other.gridPosW && gridPosH == other.gridPosH;
+            }
+
+            bool const operator<(const elem &other) const {
+                return gridPosW < other.gridPosW || (gridPosW == other.gridPosW && gridPosH < other.gridPosH);
+            }
+        };
+
+        int _hCount;
+        int _wCount;
+        int _wSpacing;
+        int _hSpacing;
+        std::set<elem> _viewports;
+
     public:
         Vk_LayoutGrid(int wCount, int hCount, int wSpacing, int hSpacing) 
         : 
@@ -95,25 +115,5 @@ namespace VK5 {
             _viewports.insert(e);
             return *this;
         }
-
-    private:
-        struct elem {
-            int gridPosH, gridPosW;
-            Vk_LayoutElem layoutElem;
-
-            bool const operator==(const elem &other) const {
-                return gridPosW == other.gridPosW && gridPosH == other.gridPosH;
-            }
-
-            bool const operator<(const elem &other) const {
-                return gridPosW < other.gridPosW || (gridPosW == other.gridPosW && gridPosH < other.gridPosH);
-            }
-        };
-
-        int _hCount;
-        int _wCount;
-        int _wSpacing;
-        int _hSpacing;
-        std::set<elem> _viewports;
     };
 }

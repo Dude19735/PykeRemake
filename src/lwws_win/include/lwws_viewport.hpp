@@ -48,6 +48,7 @@ namespace LWWS {
     };
 
     class LWWS_Viewport {
+    private:
         float _posW;
         float _posH;
         float _width;
@@ -62,6 +63,7 @@ namespace LWWS {
         TViewportId _viewportId;
         LWWS_MouseState* _parentMouseState;
         LWWS_WindowState* _parentWindowState;
+        
     public:
         LWWS_Viewport(
             TViewportId viewportId, 

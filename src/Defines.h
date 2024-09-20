@@ -133,9 +133,32 @@ namespace VK5 {
 	};
 
     enum class Vk_SteeringType {
-		CAMERA_CENTRIC,
-		OBJECT_CENTRIC
+		CameraCentric,
+		ObjectCentric
 	};
+
+    enum class Vk_GpuOp {
+        Graphics,
+        Compute,
+        Transfer
+        /**
+         * Exsist but unsupported
+         */
+        // SparseBinding,
+        // Protected,
+        // VideoDecode,
+        // VideoEncode,
+        // OpticalFlow
+    };
+
+    static std::string Vk_GpuOp2String(Vk_GpuOp type){
+            switch(type){
+                case Vk_GpuOp::Compute: return "Compute";
+                case Vk_GpuOp::Graphics: return "Graphics";
+                case Vk_GpuOp::Transfer: return "Transfer";
+                default: return "Unknown";
+            }
+        }
 
     struct Vk_PinholeState {
         glm::tvec3<point_type> wPos;

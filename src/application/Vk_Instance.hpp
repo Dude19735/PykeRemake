@@ -5,6 +5,15 @@
 
 namespace VK5 {
 	class Vk_Instance {
+	private:
+		std::vector<const char*> _deviceExtensions;
+		std::string _applicationName;
+
+		VkInstance _instance;
+#ifdef _DEBUG
+		VkDebugUtilsMessengerEXT _debugMessenger;
+#endif
+
 	public:
 		Vk_Instance(std::string applicationName) 
 			:
@@ -30,23 +39,15 @@ namespace VK5 {
 			vkDestroyInstance(_instance, nullptr);
 		}
 
-		VkInstance vk_instance() {
+		VkInstance vk_instance() const {
 			return _instance;
 		}
 
-		std::string vk_applicationName() {
+		std::string vk_applicationName() const {
 			return _applicationName;
 		}
 
 	private:
-		std::vector<const char*> _deviceExtensions;
-		std::string _applicationName;
-
-		VkInstance _instance;
-#ifdef _DEBUG
-		VkDebugUtilsMessengerEXT _debugMessenger;
-#endif
-
 		void initApplication() {
 			// filling this struct is optional
 			VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO };

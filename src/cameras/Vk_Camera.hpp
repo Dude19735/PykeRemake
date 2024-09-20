@@ -42,7 +42,7 @@ namespace VK5 {
      *   VK5::Vk_LayoutGrid grid(2,2, 0, 0);
      *   grid.add(0,0,p,m)                                          
      *       .add(0,1,p,VK5::mRT(m,VK5::Vk_RenderType::Rasterizer_IM))
-     *       .add(1,0,p,mST(m,VK5::Vk_SteeringType::CAMERA_CENTRIC))
+     *       .add(1,0,p,mST(m,VK5::Vk_SteeringType::CameraCentric))
      *       .add(1,1,p,VK5::mSG(m,2));
      */
     Vk_CameraMisc& mRT(Vk_CameraMisc& cameraMisc, Vk_RenderType newRenderType){
@@ -56,7 +56,7 @@ namespace VK5 {
      *   VK5::Vk_LayoutGrid grid(2,2, 0, 0);
      *   grid.add(0,0,p,m)
      *       .add(0,1,p,VK5::mRT(m,VK5::Vk_RenderType::Rasterizer_IM))
-     *       .add(1,0,p,mST(m,VK5::Vk_SteeringType::CAMERA_CENTRIC))
+     *       .add(1,0,p,mST(m,VK5::Vk_SteeringType::CameraCentric))
      *       .add(1,1,p,VK5::mSG(m,2));
      */
     Vk_CameraMisc& mST(Vk_CameraMisc& cameraMisc, Vk_SteeringType newSteeringType){
@@ -71,6 +71,13 @@ namespace VK5 {
     };
 
     class Vk_Camera {
+    private:
+        Vk_CameraMisc _misc;
+        Vk_CameraState _state;
+
+        std::unique_ptr<I_Renderer> _renderer;
+        std::unique_ptr<I_ViewerSteering> _steering;
+
     public:
         Vk_Camera(const Vk_CameraInit& init)
         : 
@@ -103,7 +110,7 @@ namespace VK5 {
             Vk_CameraLib::calculateTransform(_state.viewport.width(), _state.viewport.height(), _state.pinhole);
 		}
 
-        bool contains(int posw, int posh){
+        const bool contains(int posw, int posh) {
             return _state.viewport.contains(posw, posh);
         }
 
@@ -122,6 +129,12 @@ namespace VK5 {
         }
 
         /* == Callbacks == */
+        void onWindowAction(int w, int h, int px, int py, const std::set<int>& pressedKeys, LWWS::WindowAction windowAction, void* aptr){
+            /**
+             * TODO: trigger redraw
+             */
+		}
+
         void onMouseAction(int px, int py, int dx, int dy, float dz, const std::set<int>& pressedKeys, LWWS::MouseButton mouseButton, LWWS::ButtonOp op, LWWS::MouseAction mouseAction, void* aptr) {
 			_steering->onMouseAction(_state, px, py, dx, dy, dz, pressedKeys, mouseButton, op, mouseAction, aptr);
             /**
@@ -136,30 +149,12 @@ namespace VK5 {
              */
 		}
 
-        // void onMouseMoveCallback(GLFWwindow* window, double xpos, double ypos) {
-		// 	_steering->onMouseMove(window, this, xpos, ypos);
-		// }
-
-		// void onMouseScrollCallback(GLFWwindow* window, double xoffset, double yoffset){
-		// 	_steering->onMouseScroll(window, this, yoffset, yoffset);
-		// }
-
-		// void onKeyPressedCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-		// 	_steering->onKeyPressed(window, this, key, scancode, action, mods);
-		// }
-
     private:
-        Vk_CameraMisc _misc;
-        Vk_CameraState _state;
-
-        std::unique_ptr<I_Renderer> _renderer;
-        std::unique_ptr<I_ViewerSteering> _steering;
-
         std::unique_ptr<I_ViewerSteering> setSteering(const Vk_CameraMisc& misc){
-			if(misc.SteeringType == Vk_SteeringType::CAMERA_CENTRIC){
+			if(misc.SteeringType == Vk_SteeringType::CameraCentric){
 				return std::make_unique<Vk_ViewerSteering_CameraCentric>();
 			}
-			else if(misc.SteeringType == Vk_SteeringType::OBJECT_CENTRIC){
+			else if(misc.SteeringType == Vk_SteeringType::ObjectCentric){
 				return std::make_unique<Vk_ViewerSteering_ObjectCentric>();
 			}
 

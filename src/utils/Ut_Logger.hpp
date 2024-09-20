@@ -22,8 +22,26 @@ class NoneObj {};
 // define a simple logger that allowes not to define iostream all over the place
 namespace UT {
 	class Ut_Logger {
+	private:
+		static void HighlightedText(const std::string& message, const std::string& color){
+			std::cout << color << message << TextColors::TE_COL_END << std::endl;
+		}
 
 	public:
+		// define some colorful messages
+		template<class ..._Types>
+		static void HighlightedRed(const std::string& message, const _Types&... _args) {
+			HighlightedText(std::vformat(message, std::make_format_args(_args...)), TextColors::TE_COL_HIGHLIGHT_RED);
+		}
+		template<class ..._Types>
+		static void HighlightedYellow(const std::string& message, const _Types&... _args) {
+			HighlightedText(std::vformat(message, std::make_format_args(_args...)), TextColors::TE_COL_HIGHLIGHT_YELLOW);
+		}
+		template<class ..._Types>
+		static void HighlightedGreen(const std::string& message, const _Types&... _args) {
+			HighlightedText(std::vformat(message, std::make_format_args(_args...)), TextColors::TE_COL_HIGHLIGHT_GREEN);
+		}
+
 		// define a trace/log/warn... that can take a message 
 		// and a bunch of other parameters
 		//static void Trace(std::string message ...);
