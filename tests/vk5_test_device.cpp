@@ -81,13 +81,13 @@ bool assertPrioritiesVec(const std::vector<VK5::Vk_GpuOp>& required, const std::
     return std::equal(given.begin(), given.end(), res.begin());
 }
 
-BOOST_AUTO_TEST_CASE(TestDeviceInit1, *new_test)
+BOOST_AUTO_TEST_CASE(TestDeviceInit1, *all_tests)
 {
     std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer, VK5::Vk_GpuOp::Compute};
     const auto prioritySubsets = allPermutationsAndSubsets(priorities);
     for(const auto& p : prioritySubsets) {
-        VK5::Vk_Device device("test", VK5::Vk_DevicePreference::USE_ANY_GPU, p);
         vec2stream(p, std::cout);
+        VK5::Vk_Device device("test", VK5::Vk_DevicePreference::USE_ANY_GPU, p);
         device.tableStream(std::cout);
         for(const auto& pd : device.PhysicalDevices){
             for(const auto& given : pd.second.physicalDeviceQueues().queueFamilies()){
@@ -103,6 +103,13 @@ BOOST_AUTO_TEST_CASE(TestDeviceInit1, *new_test)
         }
     }
 
+}
+
+BOOST_AUTO_TEST_CASE(TestDeviceQueuePrio, *new_test)
+{
+    std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer};
+    VK5::Vk_Device device("test", VK5::Vk_DevicePreference::USE_ANY_GPU, priorities);
+    device.tableStream(std::cout);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -19,6 +19,7 @@ namespace VK5 {
             bool swapchain;
             bool memoryBudget;
             bool wideLines;
+            bool timelineSemaphore;
         };
 
         /**
@@ -27,7 +28,8 @@ namespace VK5 {
          */
         struct PhysicalDevicePR {
             VkPhysicalDeviceProperties properties;
-            VkPhysicalDeviceFeatures features;
+            VkPhysicalDeviceFeatures v10features;
+            VkPhysicalDeviceVulkan12Features v12features {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
             VkSampleCountFlagBits maxUsableSampleCount;
             std::vector<VkExtensionProperties> availableExtensions;
             ExtensionSupport extensionSupport;
@@ -40,71 +42,35 @@ namespace VK5 {
          *  - VkSampleCountFlagBits
          *  - all supported VkExtensionProperties
          */
-        static PhysicalDevicePR queryPhysicalDeviceCapabilities(VkPhysicalDevice physicalDevice){
-            PhysicalDevicePR capabilities;
+        static PhysicalDevicePR queryPhysicalDevicePr(VkPhysicalDevice physicalDevice){
+            PhysicalDevicePR pr;
 
             // query basic physical device stuff like type and supported vulkan version
-			vkGetPhysicalDeviceProperties(physicalDevice, &capabilities.properties);
+			vkGetPhysicalDeviceProperties(physicalDevice, &pr.properties);
 			// query exotic stuff about the device like viewport rendering or 64 bit floats
-			vkGetPhysicalDeviceFeatures(physicalDevice, &capabilities.features);
+            VkPhysicalDeviceFeatures2 features2;
+            features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            features2.pNext = &pr.v12features;
+            features2.features = pr.v10features;
+            vkGetPhysicalDeviceFeatures2(physicalDevice, &features2);
+            pr.v10features = features2.features;
             // get the maximum usable sample count
-			VkSampleCountFlags counts = std::min(capabilities.properties.limits.framebufferColorSampleCounts, capabilities.properties.limits.framebufferDepthSampleCounts);
+			VkSampleCountFlags counts = std::min(pr.properties.limits.framebufferColorSampleCounts, pr.properties.limits.framebufferDepthSampleCounts);
             // assign useful enum designation to max usable sample count
-            capabilities.maxUsableSampleCount = _getMaxUsableSampleCount(counts);
+            pr.maxUsableSampleCount = _getMaxUsableSampleCount(counts);
 
             // query all available extensions
             uint32_t extensionCount;
             vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr);
-            capabilities.availableExtensions.resize(extensionCount);
-			vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount,capabilities.availableExtensions.data());
+            pr.availableExtensions.resize(extensionCount);
+			vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount,pr.availableExtensions.data());
 
-            capabilities.extensionSupport.swapchain =_querySwapchainExtensionSupport(capabilities);
-            capabilities.extensionSupport.memoryBudget =_queryMemoryBudgetExtensionSupport(capabilities);
-            capabilities.extensionSupport.wideLines =_queryWideLinesSupport(capabilities);
+            pr.extensionSupport.swapchain =_querySwapchainExtensionSupport(pr);
+            pr.extensionSupport.memoryBudget =_queryMemoryBudgetExtensionSupport(pr);
+            pr.extensionSupport.wideLines =_queryWideLinesSupport(pr);
+            pr.extensionSupport.timelineSemaphore = _queryTimelineSemaphoreSupport(pr);
 
-            return capabilities;
-        }
-
-        static TDeviceDeviceQueueFamilyMap getDeviceQueueFamilyMap(const TQueueFamilies& queueFamilies, /*out*/int& largestFamily){
-            TDeviceDeviceQueueFamilyMap uniqueQueueFamilies;
-            largestFamily = 0;
-            for(const auto& f : queueFamilies){
-                auto& family = f.second;
-                if(family.opPriorities.size() == 0) continue;
-                if(family.queueCount > largestFamily) largestFamily = family.queueCount;
-                uniqueQueueFamilies.insert({family.queueFamilyIndex, UT::Ut_Std::vec_range(0U, family.queueCount)});
-            }
-            return uniqueQueueFamilies;
-        }
-
-        static Vk_CI::VkDeviceQueueCreateInfo_W getDeviceQueueCreateInfo(const TDeviceDeviceQueueFamilyMap& familyMap, int largestFamily){
-            Vk_CI::VkDeviceQueueCreateInfo_W w;
-            w.queuePriority = std::vector<float>(largestFamily, 1.0f);
-			for (const auto& uqf : familyMap) {
-				VkDeviceQueueCreateInfo queueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO };
-				queueCreateInfo.queueFamilyIndex = uqf.first;
-				queueCreateInfo.queueCount = static_cast<uint32_t>(uqf.second.size());
-				queueCreateInfo.pQueuePriorities = w.queuePriority.data();
-				w.data.push_back(queueCreateInfo);
-            }
-
-            return w;
-        }
-
-        static Vk_CI::VkDeviceCreateInfo_W getDeviceCreateInfo(const std::vector<VkDeviceQueueCreateInfo>& queueCreateInfos, const Vk_PhysicalDeviceLib::PhysicalDevicePR& pr){
-            // NOTE: this one actually **allocates** the queues too => need to get all of them with vkGetDeviceQueue
-            Vk_CI::VkDeviceCreateInfo_W w = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
-			w.data.pQueueCreateInfos = queueCreateInfos.data();
-			w.data.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-			w.data.pEnabledFeatures = &pr.features;
-
-            if(pr.extensionSupport.memoryBudget) w.deviceExtensions.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
-            if(pr.extensionSupport.swapchain) w.deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-
-			w.data.enabledExtensionCount = static_cast<uint32_t>(w.deviceExtensions.size());
-			w.data.ppEnabledExtensionNames = w.deviceExtensions.data();
-
-            return w;
+            return pr;
         }
 
         static void tableStream(
@@ -167,22 +133,30 @@ namespace VK5 {
         }
 
     private:
-        static bool _querySwapchainExtensionSupport(const PhysicalDevicePR& capabilities) {
-            for(const auto& extension : capabilities.availableExtensions) {
+        static bool _querySwapchainExtensionSupport(const PhysicalDevicePR& pr) {
+            for(const auto& extension : pr.availableExtensions) {
                 if(strcmp(extension.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0) return true;
             }
             return false;
         }
 
-        static bool _queryMemoryBudgetExtensionSupport(const PhysicalDevicePR& capabilities) {
-            for(const auto& extension : capabilities.availableExtensions) {
+        static bool _queryMemoryBudgetExtensionSupport(const PhysicalDevicePR& pr) {
+            for(const auto& extension : pr.availableExtensions) {
                 if(strcmp(extension.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0) return true;
             }
             return false;
         }
 
-        static bool _queryWideLinesSupport(const PhysicalDevicePR& capabilities) {
-            return capabilities.features.wideLines == VK_TRUE;
+        static bool _queryTimelineSemaphoreSupport(const PhysicalDevicePR& pr) {
+            // for(const auto& extension : pr.availableExtensions) {
+            //     if(strcmp(extension.extensionName, VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME) == 0) return true;
+            // }
+            // return false;
+            return pr.v12features.timelineSemaphore == VK_TRUE;
+        }
+
+        static bool _queryWideLinesSupport(const PhysicalDevicePR& pr) {
+            return pr.v10features.wideLines == VK_TRUE;
         }
 
         static VkSampleCountFlagBits _getMaxUsableSampleCount(VkSampleCountFlags counts){

@@ -20,14 +20,6 @@ namespace VK5 {
 			return std::string("[") + name + std::string("] ") + message;
 		}
 
-        static bool replace(std::string& str, const std::string& from, const std::string& to) {
-			size_t start_pos = str.find(from);
-			if (start_pos == std::string::npos)
-				return false;
-			str.replace(start_pos, from.length(), to);
-			return true;
-		}
-
 		static double round(double value, int decimals) {
 			double f = decimals * 10.0;
 			return std::round(value * f) / f;

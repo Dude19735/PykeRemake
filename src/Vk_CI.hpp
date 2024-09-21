@@ -14,5 +14,29 @@ namespace VK5 {
             VkDeviceCreateInfo data;
             std::vector<const char*> deviceExtensions;
         };
+
+        struct VkSemaphoreTypeCreateInfo_W {
+            VkSemaphoreTypeCreateInfo data {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+                .pNext = NULL,
+                .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+                .initialValue = 0
+            };
+        };
+
+        struct VkSemaphoreCreateInfo_W {
+            VkSemaphoreTypeCreateInfo semaphoreTypeCreateInfo;
+            VkSemaphoreCreateInfo data;
+            VkSemaphoreCreateInfo_W() = delete;
+            VkSemaphoreCreateInfo_W(const VkSemaphoreTypeCreateInfo& timelineCreateInfo)
+            :
+            semaphoreTypeCreateInfo(timelineCreateInfo),
+            data({
+                .sType=VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+                .pNext=&semaphoreTypeCreateInfo,
+                .flags=0
+            })
+            {}
+        };
     };
 }

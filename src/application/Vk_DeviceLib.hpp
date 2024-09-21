@@ -1435,9 +1435,9 @@ namespace VK5 {
 
 			propStrLong = std::string(type);
 
-			while (Vk_Lib::replace(type, "VK_MEMORY_PROPERTY_", "")) {};
-			while (Vk_Lib::replace(type, "_BIT", "")) {};
-			while (Vk_Lib::replace(type, "_", " ")) {};
+			while (UT::Ut_Std::str_replace(type, "VK_MEMORY_PROPERTY_", "")) {};
+			while (UT::Ut_Std::str_replace(type, "_BIT", "")) {};
+			while (UT::Ut_Std::str_replace(type, "_", " ")) {};
 
 			propStrShort = std::string(type);
 		}

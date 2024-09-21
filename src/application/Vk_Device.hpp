@@ -23,9 +23,7 @@ namespace VK5 {
 		_devicePreference(devicePreference),
 		_instance(std::make_unique<Vk_Instance>(deviceName)),
 		PhysicalDevices(_enumeratePhysicalDevices(opPriorities))
-		{
-
-		}
+		{}
 
 		~Vk_Device(){}
 
@@ -50,9 +48,9 @@ namespace VK5 {
 
             TPhysicalDeviceIndex index = 0;
             for(VkPhysicalDevice vkPhysicalDevice : vkPhysicalDevices){
-                auto capabilities = Vk_PhysicalDeviceLib::queryPhysicalDeviceCapabilities(vkPhysicalDevice);
+                auto physicalDevicePr = Vk_PhysicalDeviceLib::queryPhysicalDevicePr(vkPhysicalDevice);
 
-                physicalDevices.insert({index, Vk_PhysicalDevice(index, vkPhysicalDevice, capabilities, opPriorities)});
+                physicalDevices.insert({index, Vk_PhysicalDevice(index, vkPhysicalDevice, physicalDevicePr, opPriorities)});
                 index++;
             }
 

@@ -5,6 +5,8 @@
 #include "../Defines.h"
 #include "Vk_PhysicalDeviceLib.hpp"
 #include "Vk_PhysicalDeviceQueue.hpp"
+#include "Vk_LogicalDevice.hpp"
+#include "Vk_LogicalDeviceQueue.hpp"
 
 namespace VK5 {
     class Vk_PhysicalDevice{
@@ -13,7 +15,8 @@ namespace VK5 {
         VkPhysicalDevice _physicalDevice;
         Vk_PhysicalDeviceLib::PhysicalDevicePR _pr;
         Vk_PhysicalDeviceQueue _physicalDeviceQueues;
-        VkDevice _device;
+        Vk_LogicalDevice _logicalDevice;
+        Vk_LogicalDeviceQueue _logicalDeviceQueues;
     public:
         /**
          * Enumerate all available physical devices.
@@ -48,7 +51,8 @@ namespace VK5 {
         _physicalDevice(physicalDevice),
         _pr(pr),
         _physicalDeviceQueues(physicalDevice, opPriorities),
-        _device(_allocateLogicalDevice(_physicalDevice, _pr, _physicalDeviceQueues))
+        _logicalDevice(_physicalDevice, _pr, _physicalDeviceQueues),
+        _logicalDeviceQueues(_logicalDevice.vk_device(), _physicalDeviceQueues)
         {}
 
         Vk_PhysicalDevice(Vk_PhysicalDevice&& other)
@@ -57,38 +61,16 @@ namespace VK5 {
         _physicalDevice(other._physicalDevice),
         _pr(std::move(other._pr)),
         _physicalDeviceQueues(std::move(other._physicalDeviceQueues)),
-        _device(other._device)
+        _logicalDevice(std::move(other._logicalDevice)),
+        _logicalDeviceQueues(std::move(other._logicalDeviceQueues))
         {
-            other._device = nullptr;
             other._physicalDevice = nullptr;
         }
 
-        ~Vk_PhysicalDevice(){
-            if(_device != nullptr) vkDestroyDevice(_device, nullptr);
-        }
+        ~Vk_PhysicalDevice(){}
 
         VkPhysicalDevice vk_physicalDevice() const { return _physicalDevice; }
         const Vk_PhysicalDeviceLib::PhysicalDevicePR& physicalDevicePR() const { return _pr; }
         const Vk_PhysicalDeviceQueue& physicalDeviceQueues() const { return _physicalDeviceQueues; }
-
-    private:
-        VkDevice _allocateLogicalDevice(VkPhysicalDevice physicalDevice, const Vk_PhysicalDeviceLib::PhysicalDevicePR& pr, const Vk_PhysicalDeviceQueue& physicalDeviceQueues){
-            // get map to find all necessary queues (queues with skills that fit some opPriority)
-            int largestFamily;
-            const auto deviceQueueFamilyMap = Vk_PhysicalDeviceLib::getDeviceQueueFamilyMap(_physicalDeviceQueues.queueFamilies(), largestFamily); 
-
-			// add all available device physicalDeviceQueues to the create info
-            auto queueCreateInfos = Vk_PhysicalDeviceLib::getDeviceQueueCreateInfo(deviceQueueFamilyMap, largestFamily);
-
-            // create the device create info with required extensions etc
-            auto deviceCreateInfo = Vk_PhysicalDeviceLib::getDeviceCreateInfo(queueCreateInfos.data, pr);            
-
-            VkDevice device;
-			Vk_CheckVkResult(typeid(NoneObj), vkCreateDevice(physicalDevice, &deviceCreateInfo.data, nullptr, &device), "Failed to create logical device");
-
-            _physicalDeviceQueues.assign(device, deviceQueueFamilyMap);
-
-            return device;
-        }
     };
 }

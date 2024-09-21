@@ -152,7 +152,7 @@ namespace VK5 {
         // OpticalFlow
     };
 
-    static std::string Vk_GpuOp2String(Vk_GpuOp type){
+    static std::string Vk_GpuOp2String(const Vk_GpuOp& type){
             switch(type){
                 case Vk_GpuOp::Compute: return "Compute";
                 case Vk_GpuOp::Graphics: return "Graphics";

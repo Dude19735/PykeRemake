@@ -10,7 +10,7 @@ namespace VK5 {
     typedef uint32_t TQueueIndex;
     typedef TQueueIndex TQueueSize;
     typedef uint32_t TQueueFamilyIndex;
-    typedef std::unordered_map<TQueueFamilyIndex, std::vector<TQueueIndex>> TDeviceDeviceQueueFamilyMap;
+    typedef std::unordered_map<TQueueFamilyIndex, std::vector<TQueueIndex>> TDeviceQueueFamilyMap;
 
     enum class Vk_QueueFamilyPresentCapable {
         Undetermined,
@@ -91,6 +91,30 @@ namespace VK5 {
                 default: return "Undetermined";
             }
 	    }
+
+        static std::set<Vk_GpuOp> getSupportedOpTypes(const TQueueFamilies& queueFamilies){
+            std::set<Vk_GpuOp> res;
+            for(const auto& f : queueFamilies){
+                const auto& family = f.second;
+                for(const auto& op : family.opPriorities){
+                    res.insert(op);
+                }
+            }
+            return res;
+        }
+
+        static TDeviceQueueFamilyMap getDeviceQueueFamilyMap(const TQueueFamilies& queueFamilies, /*out*/TQueueSize& largestFamily){
+            // get map to find all necessary queues (queues with skills that fit some opPriority)
+            TDeviceQueueFamilyMap uniqueQueueFamilies;
+            largestFamily = 0;
+            for(const auto& f : queueFamilies){
+                auto& family = f.second;
+                if(family.opPriorities.size() == 0) continue;
+                if(family.queueCount > largestFamily) largestFamily = family.queueCount;
+                uniqueQueueFamilies.insert({family.queueFamilyIndex, UT::Ut_Std::vec_range(0U, family.queueCount)});
+            }
+            return uniqueQueueFamilies;
+        }
 
     private:
         static QueueFamilies _queryAvailableQueueFamilies(VkPhysicalDevice physicalDevice){
