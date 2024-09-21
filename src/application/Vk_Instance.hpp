@@ -6,7 +6,7 @@
 namespace VK5 {
 	class Vk_Instance {
 	private:
-		std::vector<const char*> _deviceExtensions;
+		std::vector<const char*> _instanceExtensions;
 		std::string _applicationName;
 
 		VkInstance _instance;
@@ -17,6 +17,7 @@ namespace VK5 {
 	public:
 		Vk_Instance(std::string applicationName) 
 			:
+			_instanceExtensions(_getRequiredExtensions()),
 			_applicationName(applicationName)
 #ifdef _DEBUG
 			,_debugMessenger(VK_NULL_HANDLE)
@@ -43,9 +44,7 @@ namespace VK5 {
 			return _instance;
 		}
 
-		std::string vk_applicationName() const {
-			return _applicationName;
-		}
+		const std::string applicationName() const { return _applicationName; }
 
 	private:
 		void initApplication() {
@@ -61,17 +60,11 @@ namespace VK5 {
 			// this struct is not optional
 			VkInstanceCreateInfo instanceCreateInfo = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
 			instanceCreateInfo.pApplicationInfo = &appInfo;
-
-			std::vector<const char*> platformExtensions = _getRequiredExtensions();
-
-			instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(platformExtensions.size());
-			instanceCreateInfo.ppEnabledExtensionNames = platformExtensions.data();
+			instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(_instanceExtensions.size());
+			instanceCreateInfo.ppEnabledExtensionNames = _instanceExtensions.data();
 
 			// validation layers
-			std::vector<const char*> requiredValidationLayers = {
-				//VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME
-				"VK_LAYER_KHRONOS_validation"
-			};
+			std::vector<const char*> requiredValidationLayers = { "VK_LAYER_KHRONOS_validation" };
 
 			// get available layers
 			uint32_t availableLayerCount = 0;
@@ -93,14 +86,22 @@ namespace VK5 {
 				}
 
 				if (!found) {
+					for(const auto& l : availableLayers){
+						std::cout << l.layerName << std::endl;
+					}
 					UT::Ut_Logger::RuntimeError(typeid(this), "Required validation layer is missing: {0}", requiredValidationLayers[i]);
 					break;
 				}
 			}
-#endif
-
+			// NOTE: we can enable all of them here, but that means, adding a whole lot of text
+			// std::vector<const char*> layers;
+			// for(const auto& l : availableLayers) layers.push_back(l.layerName);
 			instanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(requiredValidationLayers.size());
 			instanceCreateInfo.ppEnabledLayerNames = requiredValidationLayers.data();
+#else
+			instanceCreateInfo.enabledLayerCount = 0;
+			instanceCreateInfo.ppEnabledLayerNames = nullptr;
+#endif
 
 			// create instance
 			Vk_CheckVkResult(typeid(this), vkCreateInstance(&instanceCreateInfo, nullptr, &_instance), "Failed to create instance");
@@ -138,10 +139,6 @@ namespace VK5 {
 #endif
 			// add the necessary instance extension for the memory budget thing
 			extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-			// check which one of these is the actual one
-			// extensions.push_back(VK_NV_EXTERNAL_MEMORY_RDMA_EXTENSION_NAME);
-			// extensions.push_back(VK_NV_EXTERNAL_MEMORY_EXTENSION_NAME);
-
 #ifdef _DEBUG
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 			extensions.push_back(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
@@ -160,16 +157,16 @@ namespace VK5 {
 			std::string message = UT::GlobalCasters::castValicationLayer(pCallbackData->pMessage);
 			switch (messageSeverity) {
 			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-				UT::Ut_Logger::Error(typeid(NoneObj()), message); // red
+				UT::Ut_Logger::GpuTrace(message); // red
 				break;
 			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-				UT::Ut_Logger::Warn(typeid(NoneObj()), message); // yellow
+				UT::Ut_Logger::GpuWarn(message); // yellow
 				break;
 			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-				UT::Ut_Logger::Log(typeid(NoneObj()), message); // white or other
+				UT::Ut_Logger::GpuLog(message); // white or other
 				break;
 			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-				UT::Ut_Logger::Trace(typeid(NoneObj()), message); // white or other
+				UT::Ut_Logger::GpuTrace(message); // white or other
 				break;
 			default:
 				break;

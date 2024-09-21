@@ -92,6 +92,14 @@ namespace UT {
         static constexpr std::string TE_COL_ERROR_TITLE =   "\x1B[3;41;97m";
         static constexpr std::string TE_COL_FATAL_TITLE =   "\x1B[3;45;97m";
 
+        // GPU error headers
+        static constexpr std::string TE_COL_GPU_TRACE_TITLE =   "\x1B[3;44;94m";
+        static constexpr std::string TE_COL_GPU_LOG_TITLE =     "\x1B[3;42;94m";
+        static constexpr std::string TE_COL_GPU_MESSAGE_TITLE = "\x1B[3;107;34m";
+        static constexpr std::string TE_COL_GPU_WARN_TITLE =    "\x1B[3;43;94m";
+        static constexpr std::string TE_COL_GPU_ERROR_TITLE =   "\x1B[3;41;94m";
+        static constexpr std::string TE_COL_GPU_FATAL_TITLE =   "\x1B[3;45;94m";
+
         // text highlighters
         static constexpr std::string TE_COL_HIGHLIGHT_YELLOW = "\x1B[3;43;30m";
         static constexpr std::string TE_COL_HIGHLIGHT_GREEN = "\x1B[3;102;30m";
@@ -132,12 +140,14 @@ namespace UT {
         static std::string castHighlightGreen(std::string message) { return TextColors::TE_COL_HIGHLIGHT_GREEN + message + TextColors::TE_COL_END; }
         static std::string castHighlightCyan(std::string message) { return TextColors::TE_COL_HIGHLIGHT_CYAN + message + TextColors::TE_COL_END; }
         static std::string castHighlightRed(std::string message) { return TextColors::TE_COL_HIGHLIGHT_RED + message + TextColors::TE_COL_END; }
+
         static std::string castTraceTitle(std::string message) { return TextColors::TE_COL_TRACE_TITLE + message + TextColors::TE_COL_END; }
         static std::string castLogTitle(std::string message) { return TextColors::TE_COL_LOG_TITLE + message + TextColors::TE_COL_END; }
         static std::string castMessageTitle(std::string message) { return TextColors::TE_COL_MESSAGE_TITLE + message + TextColors::TE_COL_END; }
         static std::string castWarnTitle(std::string message) { return TextColors::TE_COL_WARN_TITLE + message + TextColors::TE_COL_END; }
         static std::string castErrorTitle(std::string message) { return TextColors::TE_COL_ERROR_TITLE + message + TextColors::TE_COL_END; }
         static std::string castFatalTitle(std::string message) { return TextColors::TE_COL_FATAL_TITLE + message + TextColors::TE_COL_END; }
+
         static std::string castBlack(std::string message) { return TextColors::TE_COL_BLACK + message + TextColors::TE_COL_END; }
         static std::string castRed(std::string message) { return TextColors::TE_COL_RED + message + TextColors::TE_COL_END; }
         static std::string castGreen(std::string message) { return TextColors::TE_COL_GREEN + message + TextColors::TE_COL_END; }
@@ -146,6 +156,13 @@ namespace UT {
         static std::string castMagenta(std::string message) { return TextColors::TE_COL_MAGENTA + message + TextColors::TE_COL_END; }
         static std::string castCyan(std::string message) { return TextColors::TE_COL_CYAN + message + TextColors::TE_COL_END; }
         static std::string castWhite(std::string message) { return TextColors::TE_COL_WHITE + message + TextColors::TE_COL_END; }
+
+        static std::string castGpuTraceTitle(std::string message) { return TextColors::TE_COL_GPU_TRACE_TITLE + message + TextColors::TE_COL_END; }
+        static std::string castGpuLogTitle(std::string message) { return TextColors::TE_COL_GPU_LOG_TITLE + message + TextColors::TE_COL_END; }
+        static std::string castGpuMessageTitle(std::string message) { return TextColors::TE_COL_GPU_MESSAGE_TITLE + message + TextColors::TE_COL_END; }
+        static std::string castGpuWarnTitle(std::string message) { return TextColors::TE_COL_GPU_WARN_TITLE + message + TextColors::TE_COL_END; }
+        static std::string castGpuErrorTitle(std::string message) { return TextColors::TE_COL_GPU_ERROR_TITLE + message + TextColors::TE_COL_END; }
+        static std::string castGpuFatalTitle(std::string message) { return TextColors::TE_COL_GPU_FATAL_TITLE + message + TextColors::TE_COL_END; }
     };
 
     class Ut_ColorUtils {

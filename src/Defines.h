@@ -90,6 +90,7 @@
 
 #include "./lwws_win/lwws_win.hpp"
 #include "./utils/Ut_Logger.hpp"
+#include "./utils/Ut_Std.hpp"
 #include "Vk_Lib.hpp"
 
 namespace VK5 {

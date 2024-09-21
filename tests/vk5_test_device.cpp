@@ -81,7 +81,7 @@ bool assertPrioritiesVec(const std::vector<VK5::Vk_GpuOp>& required, const std::
     return std::equal(given.begin(), given.end(), res.begin());
 }
 
-BOOST_AUTO_TEST_CASE(TestCameraInit1, *new_test)
+BOOST_AUTO_TEST_CASE(TestDeviceInit1, *new_test)
 {
     std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer, VK5::Vk_GpuOp::Compute};
     const auto prioritySubsets = allPermutationsAndSubsets(priorities);
@@ -90,7 +90,7 @@ BOOST_AUTO_TEST_CASE(TestCameraInit1, *new_test)
         vec2stream(p, std::cout);
         device.tableStream(std::cout);
         for(const auto& pd : device.PhysicalDevices){
-            for(const auto& given : pd.second.Queues.queueFamilies()){
+            for(const auto& given : pd.second.physicalDeviceQueues().queueFamilies()){
                 bool correct = assertPrioritiesVec(p, given.second.opPriorities);
                 if(!correct){
                     std::cout << "!! given:    ";

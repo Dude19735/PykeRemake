@@ -34,7 +34,7 @@ namespace VK5 {
 			std::unordered_map<TPhysicalDeviceIndex, TQueueFamilies> qf;
 			for(const auto& pd : PhysicalDevices){
 				pr.insert({pd.first, pd.second.physicalDevicePR()});
-				qf.insert({pd.first, pd.second.Queues.queueFamilies()});
+				qf.insert({pd.first, pd.second.physicalDeviceQueues().queueFamilies()});
 			}
 			Vk_PhysicalDeviceLib::tableStream(pr, qf, out);
 		}
@@ -46,14 +46,13 @@ namespace VK5 {
          */
         TPhysicalDevices _enumeratePhysicalDevices(const std::vector<Vk_GpuOp>& opPriorities){
             TPhysicalDevices physicalDevices;
-            auto vkPhysicalDevices =  Vk_PhysicalDeviceLib::enumeratePhysicalDevices(*_instance.get());
+            auto vkPhysicalDevices =  Vk_PhysicalDevice::enumeratePhysicalDevices(_instance->vk_instance());
 
             TPhysicalDeviceIndex index = 0;
             for(VkPhysicalDevice vkPhysicalDevice : vkPhysicalDevices){
                 auto capabilities = Vk_PhysicalDeviceLib::queryPhysicalDeviceCapabilities(vkPhysicalDevice);
-                auto extensions = Vk_PhysicalDeviceLib::queryPhysicalDeviceExtensionsSupport(capabilities);
 
-                physicalDevices.insert({index, Vk_PhysicalDevice(index, vkPhysicalDevice, capabilities, extensions, opPriorities)});
+                physicalDevices.insert({index, Vk_PhysicalDevice(index, vkPhysicalDevice, capabilities, opPriorities)});
                 index++;
             }
 

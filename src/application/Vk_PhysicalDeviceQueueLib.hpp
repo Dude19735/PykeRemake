@@ -7,7 +7,10 @@
 #include "../Defines.h"
 
 namespace VK5 {
-    typedef int TQueueFamilyIndex;
+    typedef uint32_t TQueueIndex;
+    typedef TQueueIndex TQueueSize;
+    typedef uint32_t TQueueFamilyIndex;
+    typedef std::unordered_map<TQueueFamilyIndex, std::vector<TQueueIndex>> TDeviceDeviceQueueFamilyMap;
 
     enum class Vk_QueueFamilyPresentCapable {
         Undetermined,
@@ -17,7 +20,7 @@ namespace VK5 {
 
     struct Vk_QueueFamily {
         TQueueFamilyIndex queueFamilyIndex;
-        int queueCount;
+        TQueueSize queueCount;
         std::set<VkQueueFlagBits> flagBits;
         std::vector<Vk_GpuOp> opPriorities;
         VkExtent3D minImageTransferGranularity;
@@ -45,47 +48,6 @@ namespace VK5 {
         };
 
     public:
-        struct QueueIdentifier {
-            int queuFamilyIndex;
-            int queueIndex;
-        };
-
-        void assignQueues(TQueueFamilies queueFamilies, std::vector<Vk_GpuOp> priorities) {
-            // 0. create QueueIdentifier for each queue
-            // 1. assign queues that only support one task
-            // 2. sum up how many queues we have for all categories
-            // Priorities: Graphics -> Transfer -> Compute (the last one is nice to have if we have enough of the other ones)
-            std::vector<QueueIdentifier> compute;
-            std::vector<QueueIdentifier> transfer;
-            std::vector<QueueIdentifier> graphics;
-            std::set<std::string> used;
-
-            // 1. assign queues that can do only one of the priorities
-            for(auto& f : queueFamilies){
-                auto& family = f.second;
-                // int deviceIndex = qfp.first;
-                // for(auto& qf : qfp.second){
-                //     int queueFamilyIndex = qf.first;
-                //     for(int queueIndex=0; queueIndex<qf.second.count; ++queueIndex){
-                //         const auto& x = qf.second.flags;
-                //         if(x.contains(VK_QUEUE_TRANSFER_BIT) && !x.contains(VK_QUEUE_COMPUTE_BIT) && !x.contains(VK_QUEUE_GRAPHICS_BIT)){
-                //             transfer.push_back(Vk_DeviceQueueLib::QueueIdentifier{.deviceIndex=deviceIndex, .queuFamilyIndex=queueFamilyIndex, .queueIndex=queueIndex});
-                //             used.insert(mergeIndices(deviceIndex, queueFamilyIndex, queueIndex));
-                //         }
-                //         else if(!x.contains(VK_QUEUE_TRANSFER_BIT) && x.contains(VK_QUEUE_COMPUTE_BIT) && !x.contains(VK_QUEUE_GRAPHICS_BIT)){
-                //             compute.push_back(Vk_DeviceQueueLib::QueueIdentifier{.deviceIndex=deviceIndex, .queuFamilyIndex=queueFamilyIndex, .queueIndex=queueIndex});
-                //             used.insert(mergeIndices(deviceIndex, queueFamilyIndex, queueIndex));
-                //         }
-                //         else if(!x.contains(VK_QUEUE_TRANSFER_BIT) && !x.contains(VK_QUEUE_COMPUTE_BIT) && x.contains(VK_QUEUE_GRAPHICS_BIT)){
-                //             graphics.push_back(Vk_DeviceQueueLib::QueueIdentifier{.deviceIndex=deviceIndex, .queuFamilyIndex=queueFamilyIndex, .queueIndex=queueIndex});
-                //             used.insert(mergeIndices(deviceIndex, queueFamilyIndex, queueIndex));
-                //         }
-                //     }
-                // }
-            }
-
-        }
-
         static bool queryQueueFamilyPresentCapability(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, VkSurfaceKHR surface) {
             VkBool32 presentSupport;
             vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, queueFamilyIndex, surface, &presentSupport);
@@ -149,12 +111,12 @@ namespace VK5 {
         static TQueueFamilies _queryQueueFamiliesCapabilities(VkPhysicalDevice physicalDevice, const QueueFamilies& queueFamilies, const std::vector<Vk_GpuOp>& opPriorities){
             TQueueFamilies queueFamilyMap;
 
-            for(int queueFamilyIndex=0; queueFamilyIndex < queueFamilies.queueFamiliesCount; queueFamilyIndex++){
+            for(TQueueFamilyIndex queueFamilyIndex=0; queueFamilyIndex < queueFamilies.queueFamiliesCount; queueFamilyIndex++){
                 const VkQueueFamilyProperties& props = queueFamilies.queueFamilyProperties.at(queueFamilyIndex);
                 const auto queueFlagBitsSet = _queueFamilyPropertiesSplitter(props.queueFlags);
                 queueFamilyMap.insert({queueFamilyIndex, Vk_QueueFamily {
                     .queueFamilyIndex = queueFamilyIndex,
-                    .queueCount = static_cast<int>(props.queueCount),
+                    .queueCount = static_cast<TQueueSize>(props.queueCount),
                     .flagBits = queueFlagBitsSet,
                     .opPriorities = _queueFlagBits2QueueTypePriorities(queueFlagBitsSet, opPriorities),
                     .minImageTransferGranularity = props.minImageTransferGranularity,

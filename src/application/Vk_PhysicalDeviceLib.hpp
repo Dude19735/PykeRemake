@@ -5,25 +5,22 @@
 
 #include "../Defines.h"
 #include "../external/tabulate/single_include/tabulate/tabulate.hpp"
+#include "../Vk_CI.hpp"
 #include "Vk_PhysicalDeviceQueueLib.hpp"
-#include "Vk_Instance.hpp"
 
 namespace VK5 {
     typedef int TPhysicalDeviceIndex;
     class Vk_PhysicalDevice;
     typedef std::unordered_map<TPhysicalDeviceIndex, Vk_PhysicalDevice> TPhysicalDevices;
 
-    /**
-     * This struct contains a bunch of bools to make support test easier and more explicit
-     */
-    struct Vk_PhysicalDeviceExtensionsSupport {
-        bool swapchain;
-        bool memoryBudget;
-        bool wideLines;
-    };
-
     class Vk_PhysicalDeviceLib{
     public:
+        struct ExtensionSupport {
+            bool swapchain;
+            bool memoryBudget;
+            bool wideLines;
+        };
+
         /**
          * This struct groups all the information about a physical device.
          * PR stands for public relations.
@@ -33,29 +30,8 @@ namespace VK5 {
             VkPhysicalDeviceFeatures features;
             VkSampleCountFlagBits maxUsableSampleCount;
             std::vector<VkExtensionProperties> availableExtensions;
+            ExtensionSupport extensionSupport;
         };
-
-        /**
-         * Enumerate all available physical devices.
-         * Throw a runtime exception if something goes wrong.
-         */
-        static std::vector<VkPhysicalDevice> enumeratePhysicalDevices(const Vk_Instance& instance){
-            // see how many vulkan capable devices we can find
-            uint32_t deviceCount;
-            VkResult res = vkEnumeratePhysicalDevices(instance.vk_instance(), &deviceCount, nullptr);
-            Vk_CheckVkResult(typeid(NoneObj), res, "Failed to enumerate physical devices");
-
-            // if we don't find any suitable devices, throw an exception because the program won't work anyways
-			if (deviceCount == 0) UT::Ut_Logger::RuntimeError(typeid(NoneObj), "Failed to find devices with Vulkan support!");
-
-            // retrieve the real physical devices into a vector
-			std::vector<VkPhysicalDevice> vkPhysicalDevices(deviceCount);
-			res = vkEnumeratePhysicalDevices(instance.vk_instance(), &deviceCount, vkPhysicalDevices.data());
-			if(res == VK_INCOMPLETE) UT::Ut_Logger::RuntimeError(typeid(NoneObj), "Fewer GPUs than actually presend in hardware were detected by the graphics driver. Note that in the newest version of Windows, the GPU is selected per App and all GPUs are visible by default. It can be that the vendor of one of the GPUs hides the respective other GPU. This causes VK_INCOMPLETE to be returned. If you use a dual GPU system, select the GPU that does not cause these problems and select the GPU for the viewer using Vk_DevicePreference.");
-			else Vk_CheckVkResult(typeid(NoneObj), res, "Failed to load physical devices");
-
-            return vkPhysicalDevices;
-        }
 
         /**
          * Query
@@ -82,20 +58,53 @@ namespace VK5 {
             capabilities.availableExtensions.resize(extensionCount);
 			vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount,capabilities.availableExtensions.data());
 
+            capabilities.extensionSupport.swapchain =_querySwapchainExtensionSupport(capabilities);
+            capabilities.extensionSupport.memoryBudget =_queryMemoryBudgetExtensionSupport(capabilities);
+            capabilities.extensionSupport.wideLines =_queryWideLinesSupport(capabilities);
+
             return capabilities;
         }
 
-        /**
-         * Check for explicit support of capabilities using a Vk_PhysicalDeviceCapabilities.
-         * Returns a struct with a bunch of bools.
-         * Can be extended with all kinds of support requirements.
-         */
-        static Vk_PhysicalDeviceExtensionsSupport queryPhysicalDeviceExtensionsSupport(const PhysicalDevicePR& capabilities){
-            return Vk_PhysicalDeviceExtensionsSupport {
-                .swapchain=_querySwapchainExtensionSupport(capabilities),
-                .memoryBudget=_queryMemoryBudgetExtensionSupport(capabilities),
-                .wideLines=_queryWideLinesSupport(capabilities)
-            };
+        static TDeviceDeviceQueueFamilyMap getDeviceQueueFamilyMap(const TQueueFamilies& queueFamilies, /*out*/int& largestFamily){
+            TDeviceDeviceQueueFamilyMap uniqueQueueFamilies;
+            largestFamily = 0;
+            for(const auto& f : queueFamilies){
+                auto& family = f.second;
+                if(family.opPriorities.size() == 0) continue;
+                if(family.queueCount > largestFamily) largestFamily = family.queueCount;
+                uniqueQueueFamilies.insert({family.queueFamilyIndex, UT::Ut_Std::vec_range(0U, family.queueCount)});
+            }
+            return uniqueQueueFamilies;
+        }
+
+        static Vk_CI::VkDeviceQueueCreateInfo_W getDeviceQueueCreateInfo(const TDeviceDeviceQueueFamilyMap& familyMap, int largestFamily){
+            Vk_CI::VkDeviceQueueCreateInfo_W w;
+            w.queuePriority = std::vector<float>(largestFamily, 1.0f);
+			for (const auto& uqf : familyMap) {
+				VkDeviceQueueCreateInfo queueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO };
+				queueCreateInfo.queueFamilyIndex = uqf.first;
+				queueCreateInfo.queueCount = static_cast<uint32_t>(uqf.second.size());
+				queueCreateInfo.pQueuePriorities = w.queuePriority.data();
+				w.data.push_back(queueCreateInfo);
+            }
+
+            return w;
+        }
+
+        static Vk_CI::VkDeviceCreateInfo_W getDeviceCreateInfo(const std::vector<VkDeviceQueueCreateInfo>& queueCreateInfos, const Vk_PhysicalDeviceLib::PhysicalDevicePR& pr){
+            // NOTE: this one actually **allocates** the queues too => need to get all of them with vkGetDeviceQueue
+            Vk_CI::VkDeviceCreateInfo_W w = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
+			w.data.pQueueCreateInfos = queueCreateInfos.data();
+			w.data.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+			w.data.pEnabledFeatures = &pr.features;
+
+            if(pr.extensionSupport.memoryBudget) w.deviceExtensions.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+            if(pr.extensionSupport.swapchain) w.deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
+			w.data.enabledExtensionCount = static_cast<uint32_t>(w.deviceExtensions.size());
+			w.data.ppEnabledExtensionNames = w.deviceExtensions.data();
+
+            return w;
         }
 
         static void tableStream(

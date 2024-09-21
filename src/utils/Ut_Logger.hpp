@@ -9,8 +9,9 @@
 #include "Ut_Colors.hpp"
 
 #ifdef _DEBUG
-// #define DEBUG_TRACE
+#define DEBUG_TRACE
 #define DEBUG_LOG
+#define DEBUG_GPU
 #endif
 #define MESSAGE
 #define DEBUG_WARN
@@ -101,6 +102,38 @@ namespace UT {
 			//std::cout << "==============================" << std::endl;
 			throw std::runtime_error(s.str());
 #endif
+		}
+
+		template<class ..._Types>
+		static void GpuTrace(const std::string& message, const _Types&... _args) {
+#ifdef DEBUG_GPU
+			std::string msg = GlobalCasters::castGpuTraceTitle("[TRACE | GPU]: ");
+			std::cout << msg << std::vformat(message, std::make_format_args(_args...)) << std::endl;
+#endif		
+		}
+
+		template<class ..._Types>
+		static void GpuLog(const std::string& message, const _Types&... _args) {
+#ifdef DEBUG_GPU
+			std::string msg = GlobalCasters::castGpuLogTitle("[LOG | GPU]: ");
+			std::cout << msg << std::vformat(message, std::make_format_args(_args...)) << std::endl;
+#endif		
+		}
+
+		template<class ..._Types>
+		static void GpuWarn(const std::string& message, const _Types&... _args) {
+#ifdef DEBUG_GPU
+			std::string msg = GlobalCasters::castGpuWarnTitle("[WARN | GPU]: ");
+			std::cout << msg << std::vformat(message, std::make_format_args(_args...)) << std::endl;
+#endif		
+		}
+
+		template<class ..._Types>
+		static void GpuError(const std::string& message, const _Types&... _args) {
+#ifdef DEBUG_GPU
+			std::string msg = GlobalCasters::castGpuErrorTitle("[ERROR | GPU]: ");
+			std::cout << msg << std::vformat(message, std::make_format_args(_args...)) << std::endl;
+#endif		
 		}
 	};
 }
