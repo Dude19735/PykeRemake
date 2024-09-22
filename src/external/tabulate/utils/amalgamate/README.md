@@ -20,7 +20,7 @@ Things to be aware of:
 
 `amalgamate.py` will not handle complex include directives correctly:
 
-        #define HEADER_PATH "path/to/header.hpp"
+        #define HEADER_PATH "path/to/header.h"
         #include HEADER_PATH
 
 In the above example, `path/to/header.h` will not be included in the
