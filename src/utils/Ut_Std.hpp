@@ -36,5 +36,12 @@ namespace UT {
 			std::for_each(set.begin(), set.end(), [&](const T& elem) { ss << toStr(elem); });
 			return ss.str();
 		}
+
+		template<class T>
+		static std::string vec_to_str(const std::vector<T>& set, std::string(*toStr)(const T&)){
+			std::stringstream ss;
+			std::for_each(set.begin(), set.end(), [&](const T& elem) { ss << toStr(elem); });
+			return ss.str();
+		}
     };
 }

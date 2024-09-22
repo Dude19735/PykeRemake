@@ -27,15 +27,68 @@ namespace VK5 {
 
 		~Vk_Device(){}
 
-		void tableStream(/*out*/std::ostream& out){
+		void physicalDevicesToStream(/*out*/std::ostream& out){
 			std::unordered_map<TPhysicalDeviceIndex, Vk_PhysicalDeviceLib::PhysicalDevicePR> pr;
 			std::unordered_map<TPhysicalDeviceIndex, TQueueFamilies> qf;
 			for(const auto& pd : PhysicalDevices){
 				pr.insert({pd.first, pd.second.physicalDevicePR()});
 				qf.insert({pd.first, pd.second.physicalDeviceQueues().queueFamilies()});
 			}
-			Vk_PhysicalDeviceLib::tableStream(pr, qf, out);
+			Vk_PhysicalDeviceLib::physicalDevicesToStream(pr, qf, out);
 		}
+
+		void logicalDeviceQueuesToStream(std::ostream& stream){
+            tabulate::Table table;
+			auto rs = tabulate::RowStream{};
+            for(const auto& pd : PhysicalDevices){
+				rs << std::string(pd.second.physicalDevicePR().properties.deviceName);
+			}
+			table.add_row(rs);
+			
+			auto subRs = tabulate::RowStream{};
+			for(const auto& pd : PhysicalDevices){
+				const auto& queueOpMap = pd.second.logicalDeviceQueues().queuesOpMap();
+				tabulate::Table opTable;
+				auto opRow = tabulate::RowStream{};
+				for(const auto& queues : queueOpMap){
+					opRow << Vk_GpuOp2String(queues.first);
+				}
+
+				auto opRow2 = tabulate::RowStream{};
+				std::vector<int> count;
+				for(const auto& queues : queueOpMap){
+					tabulate::Table tt;
+					tt.format().hide_border();
+					tt.add_row({"FI", "QI"});
+					int index = 0;
+					for(const auto& queue : queues.second){
+						for(const auto& q : *queue){
+							auto qstr = Queue::toString(q);
+							int ind = qstr.find('|');
+							tt.add_row({qstr.substr(0, ind), qstr.substr(ind+1, qstr.size() - ind-1) });
+							index++;
+						}
+					}
+					count.push_back(index);
+					opRow2 << tt;
+				}
+
+				auto opRow3 = tabulate::RowStream{};
+				for(const auto& c : count){
+					opRow3 << std::to_string(c);
+				}
+
+				opTable.add_row(opRow);
+				opTable[0].format().font_align(tabulate::FontAlign::center);
+				opTable.add_row(opRow2);
+				opTable.add_row(opRow3);
+				opTable[2].format().font_align(tabulate::FontAlign::center);
+				subRs << opTable;
+			}
+			table.add_row(subRs);
+
+			stream << table << std::endl;;
+        }
 
 	private:
 		/**

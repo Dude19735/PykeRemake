@@ -11,6 +11,10 @@ namespace VK5 {
         VkDevice _vkDevice;
         // this one is an array becuase it has to be allocated at runtime and really has 
         // to stay where it is afterwards (std::vector doesn't necessarily do that)
+        // _logicalQueues is NOT indexed using the queue family index. It only contains the queue families
+        // that can actually be used, given the Vk_GpuOp priorities. For example, if queue families 0 and 2 are used
+        // then family 0 is at index 0 but family 2 is at index 1. If _logicalQueues is then indexed using the family indices
+        //  => garbage-memory-out-of-bounds!
         TLogicalQueuesSize _logicalQueuesSize;
         std::unique_ptr<TLogicalQueues[]> _logicalQueues;
 
@@ -34,7 +38,7 @@ namespace VK5 {
         :
         _vkDevice(device),
         _logicalQueues(Vk_LogicalDeviceQueueLib::createLogicalQueues(_vkDevice, physicalDeviceQueue.queueFamilyMap(), _logicalQueuesSize)),
-        _queuesOpMap(Vk_LogicalDeviceQueueLib::createLogicalQueuesOpMap(physicalDeviceQueue.queueFamilies(), _logicalQueues.get(), _logicalQueuesSize))
+        _queuesOpMap(Vk_LogicalDeviceQueueLib::createLogicalQueuesOpMap(physicalDeviceQueue.queueFamilyMap(), physicalDeviceQueue.queueFamilies(), _logicalQueues.get(), _logicalQueuesSize))
         {}
 
         Vk_LogicalDeviceQueue(Vk_LogicalDeviceQueue&& other)
@@ -62,5 +66,7 @@ namespace VK5 {
                 }
             }
         }
+
+        const TLogicalQueuesOpMap& queuesOpMap() const { return _queuesOpMap; }
     };
 }

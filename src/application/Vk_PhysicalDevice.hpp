@@ -72,5 +72,6 @@ namespace VK5 {
         VkPhysicalDevice vk_physicalDevice() const { return _physicalDevice; }
         const Vk_PhysicalDeviceLib::PhysicalDevicePR& physicalDevicePR() const { return _pr; }
         const Vk_PhysicalDeviceQueue& physicalDeviceQueues() const { return _physicalDeviceQueues; }
+        const Vk_LogicalDeviceQueue& logicalDeviceQueues() const { return _logicalDeviceQueues; }
     };
 }

@@ -81,14 +81,19 @@ bool assertPrioritiesVec(const std::vector<VK5::Vk_GpuOp>& required, const std::
     return std::equal(given.begin(), given.end(), res.begin());
 }
 
-BOOST_AUTO_TEST_CASE(TestDeviceInit1, *all_tests)
+BOOST_AUTO_TEST_CASE(TestDeviceInit1, *new_test)
 {
+    std::ofstream ff("TestDeviceInit1.log", std::ios::out);
     std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer, VK5::Vk_GpuOp::Compute};
     const auto prioritySubsets = allPermutationsAndSubsets(priorities);
     for(const auto& p : prioritySubsets) {
-        vec2stream(p, std::cout);
+        vec2stream(p, ff);
+        // if(p.size() == 2 && p[0] == VK5::Vk_GpuOp::Graphics && p[1] == VK5::Vk_GpuOp::Compute){
+        //     std::cout << "lol" << std::endl;
+        // }
         VK5::Vk_Device device("test", VK5::Vk_DevicePreference::USE_ANY_GPU, p);
-        device.tableStream(std::cout);
+        device.physicalDevicesToStream(ff);
+        device.logicalDeviceQueuesToStream(ff);
         for(const auto& pd : device.PhysicalDevices){
             for(const auto& given : pd.second.physicalDeviceQueues().queueFamilies()){
                 bool correct = assertPrioritiesVec(p, given.second.opPriorities);
@@ -102,14 +107,17 @@ BOOST_AUTO_TEST_CASE(TestDeviceInit1, *all_tests)
             }
         }
     }
-
+    ff.close();
 }
 
-BOOST_AUTO_TEST_CASE(TestDeviceQueuePrio, *new_test)
+BOOST_AUTO_TEST_CASE(TestDeviceQueuePrio, *all_tests)
 {
-    std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer};
-    VK5::Vk_Device device("test", VK5::Vk_DevicePreference::USE_ANY_GPU, priorities);
-    device.tableStream(std::cout);
+    {
+        std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Compute, VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer};
+        VK5::Vk_Device device("test", VK5::Vk_DevicePreference::USE_ANY_GPU, priorities);
+        device.physicalDevicesToStream(std::cout);
+        device.logicalDeviceQueuesToStream(std::cout);
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

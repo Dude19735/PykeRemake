@@ -73,7 +73,7 @@ namespace VK5 {
             return pr;
         }
 
-        static void tableStream(
+        static void physicalDevicesToStream(
             const std::unordered_map<TPhysicalDeviceIndex, PhysicalDevicePR>& physicalDevices,
             const std::unordered_map<TPhysicalDeviceIndex, TQueueFamilies>& queueFamilies, 
             /*out*/std::ostream& stream
