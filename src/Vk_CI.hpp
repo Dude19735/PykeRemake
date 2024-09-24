@@ -38,5 +38,17 @@ namespace VK5 {
             })
             {}
         };
+
+        struct VkCommandPoolCreateInfo_W {
+            VkCommandPoolCreateInfo data;
+            VkCommandPoolCreateInfo_W(uint32_t familyIndex){
+                data = VkCommandPoolCreateInfo {
+                    .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                    .pNext = nullptr,
+                    .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
+                    .queueFamilyIndex = familyIndex
+                };
+            }
+        };
     };
 }

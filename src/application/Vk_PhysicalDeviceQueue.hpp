@@ -29,11 +29,27 @@ namespace VK5 {
         _supportedOpTypes(Vk_PhysicalDeviceQueueLib::getSupportedOpTypes(_queueFamilies))
         {}
 
-        Vk_PhysicalDeviceQueue(Vk_PhysicalDeviceQueue&& other)
+        Vk_PhysicalDeviceQueue(const Vk_PhysicalDeviceQueue& other) = delete;
+        Vk_PhysicalDeviceQueue(Vk_PhysicalDeviceQueue&& other) noexcept
         :
         _queueFamilies(std::move(other._queueFamilies)),
+        _largestFamilySize(other._largestFamilySize),
+        _deviceQueueFamilyMap(other._deviceQueueFamilyMap),
         _supportedOpTypes(std::move(other._supportedOpTypes))
-        {}
+        {
+            other._largestFamilySize = 0;
+        }
+
+        Vk_PhysicalDeviceQueue& operator=(const Vk_PhysicalDeviceQueue& other) = delete;
+        Vk_PhysicalDeviceQueue& operator=(Vk_PhysicalDeviceQueue&& other) noexcept {
+            if(this == &other) return *this;
+            _queueFamilies = std::move(other._queueFamilies);
+            _largestFamilySize = other._largestFamilySize;
+            _deviceQueueFamilyMap = std::move(other._deviceQueueFamilyMap);
+            _supportedOpTypes = std::move(other._supportedOpTypes);
+
+            other._largestFamilySize = 0;
+        }
 
         ~Vk_PhysicalDeviceQueue(){}
 

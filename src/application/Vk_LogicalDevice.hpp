@@ -14,10 +14,18 @@ namespace VK5{
         _vkDevice(_createLogicalDevice(physicalDevice, pr, physicalDeviceQueues))
         {}
 
-        Vk_LogicalDevice(Vk_LogicalDevice&& other)
+        Vk_LogicalDevice(Vk_LogicalDevice& other) = delete;
+        Vk_LogicalDevice(Vk_LogicalDevice&& other) noexcept
         :
         _vkDevice(other._vkDevice)
         {
+            other._vkDevice = nullptr;
+        }
+
+        Vk_LogicalDevice& operator=(const Vk_LogicalDevice& other) = delete;
+        Vk_LogicalDevice& operator=(Vk_LogicalDevice&& other) noexcept {
+            if(this == &other) return *this;
+            _vkDevice = other._vkDevice;
             other._vkDevice = nullptr;
         }
 

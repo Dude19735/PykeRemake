@@ -4,6 +4,7 @@
 #include "../Vk_CI.hpp"
 #include "Vk_LogicalDeviceQueueLib.hpp"
 #include "Vk_PhysicalDeviceQueue.hpp"
+#include "Vk_Queue.hpp"
 
 namespace VK5 {
     class Vk_LogicalDeviceQueue {
@@ -16,6 +17,7 @@ namespace VK5 {
         // then family 0 is at index 0 but family 2 is at index 1. If _logicalQueues is then indexed using the family indices
         //  => garbage-memory-out-of-bounds!
         TLogicalQueuesSize _logicalQueuesSize;
+        std::unordered_map<TQueueFamilyIndex, TLogicalQueueIndex> _lqMap;
         std::unique_ptr<TLogicalQueues[]> _logicalQueues;
 
         // Map that maps all DeviceQueues queues capable of performing Vk_OpX to that operation
@@ -37,11 +39,12 @@ namespace VK5 {
         Vk_LogicalDeviceQueue(VkDevice device, const Vk_PhysicalDeviceQueue& physicalDeviceQueue)
         :
         _vkDevice(device),
-        _logicalQueues(Vk_LogicalDeviceQueueLib::createLogicalQueues(_vkDevice, physicalDeviceQueue.queueFamilyMap(), _logicalQueuesSize)),
-        _queuesOpMap(Vk_LogicalDeviceQueueLib::createLogicalQueuesOpMap(physicalDeviceQueue.queueFamilyMap(), physicalDeviceQueue.queueFamilies(), _logicalQueues.get(), _logicalQueuesSize))
+        _logicalQueues(_createLogicalQueues(_vkDevice, physicalDeviceQueue.queueFamilyMap(), _logicalQueuesSize, _lqMap)),
+        _queuesOpMap(Vk_LogicalDeviceQueueLib::createLogicalQueuesOpMap(physicalDeviceQueue.queueFamilyMap(), physicalDeviceQueue.queueFamilies(), _logicalQueues.get(), _lqMap, _logicalQueuesSize))
         {}
 
-        Vk_LogicalDeviceQueue(Vk_LogicalDeviceQueue&& other)
+        Vk_LogicalDeviceQueue(Vk_LogicalDeviceQueue& other) = delete;
+        Vk_LogicalDeviceQueue(Vk_LogicalDeviceQueue&& other) noexcept
         :
         _vkDevice(other._vkDevice),
         _logicalQueues(std::move(other._logicalQueues)),
@@ -52,21 +55,58 @@ namespace VK5 {
             other._logicalQueuesSize = 0;
         }
 
+        Vk_LogicalDeviceQueue& operator=(const Vk_LogicalDeviceQueue& other) = delete;
+        Vk_LogicalDeviceQueue& operator=(Vk_LogicalDeviceQueue&& other) noexcept {
+            _vkDevice = other._vkDevice;
+            _logicalQueuesSize = other._logicalQueuesSize;
+            _logicalQueues = std::move(other._logicalQueues);
+
+            other._vkDevice = nullptr;
+            other._logicalQueuesSize = 0;
+
+            return *this;
+        }
+
         ~Vk_LogicalDeviceQueue(){
             if(_logicalQueues != nullptr){
                 // remove all the queues as soon as they are idle
-                for(TQueueIndex i=0; i<_logicalQueuesSize; ++i){
-                    auto& queueFamily = _logicalQueues[i];
-                    while(!queueFamily.empty()){
-                        auto& fq = queueFamily.back();
-                        vkQueueWaitIdle(fq.vkQueue);
-                        vkDestroySemaphore(_vkDevice, fq.vkTimelineSemaphore, nullptr);
-                        queueFamily.pop_back();
-                    }
-                }
+                for(TQueueIndex i=0; i<_logicalQueuesSize; ++i) _logicalQueues[i].clear();
             }
         }
 
         const TLogicalQueuesOpMap& queuesOpMap() const { return _queuesOpMap; }
+
+    private:
+        static std::unique_ptr<TLogicalQueues[]> _createLogicalQueues(VkDevice device, const TDeviceQueueFamilyMap& queueFamilyMap, /*out*/TLogicalQueuesSize& logicalQueuesSize, /*out*/std::unordered_map<TQueueFamilyIndex, TLogicalQueueIndex>& lqMap){
+            // get the queues for all queue families and organize them in a stack
+            std::map<TQueueFamilyIndex, std::vector<TQueueIndex>> map;
+            for(const auto& family : queueFamilyMap) {
+                for(const auto& i : family.second) {
+                    auto familyIndex = family.first;
+                    if(!map.contains(familyIndex)) map.insert({familyIndex, {}});
+                    map.at(familyIndex).push_back(i);
+                }
+            };
+
+            // move all stacks into an array, ordered by the queue family index
+            logicalQueuesSize = map.size();
+            std::unique_ptr<TLogicalQueues[]> logicalQueues = std::make_unique<TLogicalQueues[]>(logicalQueuesSize);
+            size_t s=0;
+            for(const auto& family : map){
+                logicalQueues[s].reserve(family.second.size());
+                for(const auto& queueIndex : family.second)
+                    logicalQueues[s].emplace_back(std::make_unique<Vk_Queue>(device, family.first, queueIndex));
+                s++;
+            }
+
+            // map family index to logicalQueues index (logicalQueues is a simple array where the indexes don't necessarily correspond
+            // to the family indexes)
+            for(TLogicalQueueIndex s=0; s<logicalQueuesSize; ++s){
+                const auto& q = *(logicalQueues[s].begin());
+                lqMap.insert({q->familyIndex(), s});
+            }
+
+            return logicalQueues;
+        }
     };
 }

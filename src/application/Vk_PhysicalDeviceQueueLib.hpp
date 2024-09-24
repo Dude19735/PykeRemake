@@ -25,6 +25,7 @@ namespace VK5 {
         std::vector<Vk_GpuOp> opPriorities;
         VkExtent3D minImageTransferGranularity;
         Vk_QueueFamilyPresentCapable presentCapable;
+        uint32_t logicalQueuesIndex;
     };
     typedef std::unordered_map<TQueueFamilyIndex, Vk_QueueFamily> TQueueFamilies;
 

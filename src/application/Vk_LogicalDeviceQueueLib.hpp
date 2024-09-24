@@ -6,62 +6,15 @@
 #include "Vk_PhysicalDeviceQueueLib.hpp"
 
 namespace VK5 {
-    struct Queue {
-        VkQueue vkQueue;
-        VkSemaphore vkTimelineSemaphore;
-        uint32_t familyIndex = 42;
-        uint32_t queueIndex = 42;
-
-        static std::string toString(const Queue& q){
-            std::stringstream ss;
-            // ss << std::setw(2) << std::setfill('0') << q.familyIndex << "|" << std::setw(2) << std::setfill('0') << q.queueIndex;
-            ss << q.familyIndex << "|" << q.queueIndex;
-            return ss.str();
-        }
-    };
+    class Vk_Queue;
     typedef TQueueSize TLogicalQueuesSize;
-    typedef std::vector<Queue> TLogicalQueues;
+    typedef TQueueFamilyIndex TLogicalQueueIndex;
+    typedef std::vector<std::unique_ptr<Vk_Queue>> TLogicalQueues;
     typedef std::unordered_map<Vk_GpuOp, std::vector<TLogicalQueues*>> TLogicalQueuesOpMap;
 
     class Vk_LogicalDeviceQueueLib {
     public:
-
-        static std::unique_ptr<TLogicalQueues[]> createLogicalQueues(VkDevice device, const TDeviceQueueFamilyMap& queueFamilyMap, /*out*/TLogicalQueuesSize& logicalQueuesSize){
-            // get the queues for all queue families and organize them in a stack
-            std::map<TQueueFamilyIndex, TLogicalQueues> map;
-            for(const auto& family : queueFamilyMap) {
-                for(const auto& i : family.second) {
-                    auto familyIndex = family.first;
-
-                    Queue q;
-                    q.familyIndex = familyIndex;
-                    q.queueIndex = i;
-
-                    // get the queue from the device
-                    vkGetDeviceQueue(device, familyIndex, i, &q.vkQueue);
-
-                    // create a timeline semaphore for it
-                    VkSemaphoreTypeCreateInfo timelineCreateInfo = Vk_CI::VkSemaphoreTypeCreateInfo_W().data;
-                    VkSemaphoreCreateInfo createInfo = Vk_CI::VkSemaphoreCreateInfo_W(timelineCreateInfo).data;
-                    Vk_CheckVkResult(typeid(NoneObj), vkCreateSemaphore(device, &createInfo, NULL, &q.vkTimelineSemaphore), "Failed to create timeline semaphore!");
-
-                    if(!map.contains(familyIndex)) map.insert({familyIndex, {}});
-                    map.at(familyIndex).push_back(std::move(q));
-                }
-            };
-
-            // move all stacks into an array, ordered by the queue family index
-            logicalQueuesSize = map.size();
-            std::unique_ptr<TLogicalQueues[]> logicalQueues = std::make_unique<TLogicalQueues[]>(logicalQueuesSize);
-            size_t s=0;
-            for(const auto& family : map){
-                logicalQueues[s++] = std::move(family.second);
-            }
-
-            return logicalQueues;
-        }
-
-        static TLogicalQueuesOpMap createLogicalQueuesOpMap(const TDeviceQueueFamilyMap& queueFamilyMap, const TQueueFamilies& queueFamilies, TLogicalQueues* logicalQueues, TLogicalQueuesSize logicalQueuesSize) {
+        static TLogicalQueuesOpMap createLogicalQueuesOpMap(const TDeviceQueueFamilyMap& queueFamilyMap, const TQueueFamilies& queueFamilies, TLogicalQueues* logicalQueues, const std::unordered_map<TQueueFamilyIndex, TLogicalQueueIndex>& lqMap, const TLogicalQueuesSize logicalQueuesSize) {
             // check if we have a situation, for example with Compute > Graphics > Transfer. We may get
             // that we have X queues that can do Compute and Graphics and Transfer, Y queues that can do Compute and Transfer
             // and Z queues that can only do Transfer. Assume, prioMap looks as follows:
@@ -87,10 +40,7 @@ namespace VK5 {
             // priority for that operation. The result is a map that has
             // {Vk_Op1: 
             //     {0: queue family index with Vk_Op1 as priority 1},
-            //      ...
-            //     {N: queue family index with Vk_Op1 as priority M}
-            //  Vk_Op2:
-            //     {0: queue family index with Vk_Op2 as priority 1},
+            //      ...familyIndex
             //      ...
             //     {N: queue family index with Vk_Op2 as priority M}
             // }
@@ -108,14 +58,6 @@ namespace VK5 {
                         prio++;
                     }
                 }
-            }
-
-            // map family index to logicalQueues index (logicalQueues is a simple array where the indexes don't necessarily correspond
-            // to the family indexes)
-            std::unordered_map<TQueueIndex, TQueueIndex> lqMap;
-            for(TQueueSize s=0; s<logicalQueuesSize; ++s){
-                const auto& q = *(logicalQueues[s].begin());
-                lqMap.insert({q.familyIndex, s});
             }
 
             // collect all family stacks and insert them ordered by their respective Vk_Op priority

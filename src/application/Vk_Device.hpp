@@ -63,7 +63,7 @@ namespace VK5 {
 					int index = 0;
 					for(const auto& queue : queues.second){
 						for(const auto& q : *queue){
-							auto qstr = Queue::toString(q);
+							auto qstr = q->toString();
 							int ind = qstr.find('|');
 							tt.add_row({qstr.substr(0, ind), qstr.substr(ind+1, qstr.size() - ind-1) });
 							index++;

@@ -55,6 +55,7 @@ namespace VK5 {
         _logicalDeviceQueues(_logicalDevice.vk_device(), _physicalDeviceQueues)
         {}
 
+        Vk_PhysicalDevice(const Vk_PhysicalDevice& other) = delete;
         Vk_PhysicalDevice(Vk_PhysicalDevice&& other)
         :
         _index(other._index),
@@ -65,6 +66,20 @@ namespace VK5 {
         _logicalDeviceQueues(std::move(other._logicalDeviceQueues))
         {
             other._physicalDevice = nullptr;
+        }
+
+        Vk_PhysicalDevice& operator=(const Vk_PhysicalDevice& other) = delete;
+        Vk_PhysicalDevice& operator=(Vk_PhysicalDevice&& other) {
+            _index = other._index;
+            _physicalDevice = std::move(other._physicalDevice);
+            _pr = std::move(other._pr);
+            _physicalDeviceQueues = std::move(other._physicalDeviceQueues);
+            _logicalDevice = std::move(other._logicalDevice);
+            _logicalDeviceQueues = std::move(other._logicalDeviceQueues);
+
+            other._physicalDevice = nullptr;
+
+            return *this;
         }
 
         ~Vk_PhysicalDevice(){}
