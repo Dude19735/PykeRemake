@@ -96,6 +96,8 @@
 namespace VK5 {
 	//static VkSampleCountFlagBits offscreen_samples = VK_SAMPLE_COUNT_1_BIT;
 
+    constexpr uint64_t GLOBAL_FENCE_TIMEOUT = static_cast<uint64_t>(std::chrono::nanoseconds(1000000).count());
+
 	typedef float point_type;
 	typedef std::uint32_t index_type;
     typedef int TSteeringGroup;
@@ -206,9 +208,11 @@ namespace VK5 {
 #endif
     };
 
-    static void Vk_CheckVkResult(const std::type_info& info, VkResult res, const std::string& msg){
+    template<class ..._Types>
+    static void Vk_CheckVkResult(const std::type_info& info, VkResult res, const std::string& msg, const _Types&... _args){
         if(res != VK_SUCCESS){
-            UT::Ut_Logger::RuntimeError(info, "Failed with error code {0}: " + msg, Vk_Lib::Vk_VkResult2String(res));
+            std::string argMsg = std::vformat(msg, std::make_format_args(_args...));
+            UT::Ut_Logger::RuntimeError(info, "Failed with error code {0}: " + argMsg, Vk_Lib::Vk_VkResult2String(res));
         }
     }
 

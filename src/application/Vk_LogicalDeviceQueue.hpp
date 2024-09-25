@@ -34,7 +34,7 @@ namespace VK5 {
         // }
         TLogicalQueuesOpMap _queuesOpMap;
 
-        std::shared_mutex _mutex;
+        std::mutex _mutex;
     public:
         Vk_LogicalDeviceQueue(VkDevice device, const Vk_PhysicalDeviceQueue& physicalDeviceQueue)
         :
@@ -76,6 +76,38 @@ namespace VK5 {
 
         const TLogicalQueuesOpMap& queuesOpMap() const { return _queuesOpMap; }
 
+        bool enqueue(Vk_GpuTask* task) {
+            // Gpu_Op not available
+            if(!_queuesOpMap.contains(task->opType())) return false;
+
+            auto& queues = _queuesOpMap.at(task->opType());
+            // no queues for Gpu_Op available
+            if(queues.size() == 0) return false;
+
+            std::unique_ptr<Vk_Queue> queue = nullptr;
+            TLogicalQueues* lQueues = nullptr;
+            {
+                auto lock = std::lock_guard<std::mutex>(_mutex);
+                for(auto q : queues){
+                    if(q->size() > 0){
+                        queue = std::move(q->front());
+                        q->pop_front();
+                        lQueues = q;
+                        break;
+                    }
+                }
+                // no queue available
+                if(queue == nullptr) return false;
+            }
+
+            // unique Vk_Queue for the task
+            queue->enqueue(task);
+            {
+                auto lock = std::lock_guard<std::mutex>(_mutex);
+                lQueues->emplace_back(std::move(queue));
+            }
+        }
+
     private:
         static std::unique_ptr<TLogicalQueues[]> _createLogicalQueues(VkDevice device, const TDeviceQueueFamilyMap& queueFamilyMap, /*out*/TLogicalQueuesSize& logicalQueuesSize, /*out*/std::unordered_map<TQueueFamilyIndex, TLogicalQueueIndex>& lqMap){
             // get the queues for all queue families and organize them in a stack
@@ -93,9 +125,9 @@ namespace VK5 {
             std::unique_ptr<TLogicalQueues[]> logicalQueues = std::make_unique<TLogicalQueues[]>(logicalQueuesSize);
             size_t s=0;
             for(const auto& family : map){
-                logicalQueues[s].reserve(family.second.size());
+                auto& ll = logicalQueues[s];
                 for(const auto& queueIndex : family.second)
-                    logicalQueues[s].emplace_back(std::make_unique<Vk_Queue>(device, family.first, queueIndex));
+                    ll.push_back(std::make_unique<Vk_Queue>(device, family.first, queueIndex));
                 s++;
             }
 

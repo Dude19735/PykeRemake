@@ -81,7 +81,7 @@ bool assertPrioritiesVec(const std::vector<VK5::Vk_GpuOp>& required, const std::
     return std::equal(given.begin(), given.end(), res.begin());
 }
 
-BOOST_AUTO_TEST_CASE(TestDeviceInit1, *new_test)
+BOOST_AUTO_TEST_CASE(TestDeviceInit1, *all_tests)
 {
     std::ofstream ff("TestDeviceInit1.log", std::ios::out);
     std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer, VK5::Vk_GpuOp::Compute};
@@ -110,7 +110,7 @@ BOOST_AUTO_TEST_CASE(TestDeviceInit1, *new_test)
     ff.close();
 }
 
-BOOST_AUTO_TEST_CASE(TestDeviceQueuePrio, *all_tests)
+BOOST_AUTO_TEST_CASE(TestDeviceQueuePrio, *new_test)
 {
     {
         std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Compute, VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer};

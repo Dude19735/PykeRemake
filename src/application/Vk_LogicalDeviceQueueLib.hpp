@@ -1,5 +1,7 @@
 #pragma once
 
+#include <list>
+
 #include "../Defines.h"
 #include "../external/tabulate/single_include/tabulate/tabulate.hpp"
 #include "../Vk_CI.hpp"
@@ -9,7 +11,7 @@ namespace VK5 {
     class Vk_Queue;
     typedef TQueueSize TLogicalQueuesSize;
     typedef TQueueFamilyIndex TLogicalQueueIndex;
-    typedef std::vector<std::unique_ptr<Vk_Queue>> TLogicalQueues;
+    typedef std::list<std::unique_ptr<Vk_Queue>> TLogicalQueues;
     typedef std::unordered_map<Vk_GpuOp, std::vector<TLogicalQueues*>> TLogicalQueuesOpMap;
 
     class Vk_LogicalDeviceQueueLib {
