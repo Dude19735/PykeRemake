@@ -96,7 +96,6 @@ namespace VK5 {
             Vk_GpuTask* res;
             {
 				std::unique_lock<std::mutex> lock(_allocFreeMutex);
-                task->resetStage();
                 res = task.get();
                 _allocTasks.push(std::move(task));
 			}

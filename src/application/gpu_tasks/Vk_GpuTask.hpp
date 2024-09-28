@@ -34,7 +34,7 @@ namespace VK5 {
     class Vk_Queue;
     class Vk_GpuTask {
     friend class Vk_Queue;
-        static constexpr int mCount = static_cast<int>(Vk_GpuTaskStages::Count);
+        // static constexpr int mCount = static_cast<int>(Vk_GpuTaskStages::Count);
 
         // Thank you:
         // https://stackoverflow.com/questions/73158786/locking-an-array-of-stdmutex-using-a-stdlock-guard-array
@@ -42,15 +42,6 @@ namespace VK5 {
         template<typename Mutexes>
         auto makeScopedLock(Mutexes& mutexes)
         { return std::apply([](auto&... mutexes) { return std::scoped_lock{mutexes...}; }, mutexes); }
-        
-        // // for regular arrays:
-        // template<typename Mutexes, std::size_t N, std::size_t... Is>
-        // auto makeScopedLock(Mutexes (&mutexes)[N], std::index_sequence<Is...>)
-        // { return std::scoped_lock{mutexes[Is]...}; }
-        // // helper function so you don't have to create your own index_sequence
-        // template<typename Mutexes, std::size_t N>
-        // auto makeScopedLock(Mutexes (&mutexes)[N])
-        // { return makeScopedLock(mutexes, std::make_index_sequence<N>{}); }
 
         VkDevice _vkDevice;
         Vk_GpuOp _opType;
@@ -66,8 +57,30 @@ namespace VK5 {
         std::unique_ptr<Vk_GpuTask> _self;
         Vk_QueueBase* _parentQueue;
 
-        std::array<std::mutex, mCount> _mutex;
-        std::array<std::condition_variable, mCount> _conditions;
+        // check for initialization with variadic templates
+        // https://greitemann.dev/2018/09/15/variadic-expansion-in-aggregate-initialization/ 
+        // std::array<std::mutex, mCount> _mutex;
+        // std::array<std::condition_variable, mCount> _conditions;
+        struct Stage1_Alloc{
+            std::mutex mutex;
+            std::condition_variable condition;
+        } _stage1_alloc;
+        struct Stage2_Record{
+            std::mutex mutex;
+            std::condition_variable condition;
+        } _stage2_record;
+        struct Stage3_Submit{
+            std::mutex mutex;
+            std::condition_variable condition;
+        } _stage3_submit;
+        struct Stage4_Running{
+            std::mutex mutex;
+            std::condition_variable condition;
+        } _stage4_running;
+        struct Stage5_Finished{
+            std::mutex mutex;
+            std::condition_variable condition;
+        } _stage5_finished;
 
         bool _terminate;
         std::thread _recordThread;
@@ -86,12 +99,6 @@ namespace VK5 {
         _stage(Vk_GpuTaskStages::Stage1_Alloc),
         _self(nullptr),
         _parentQueue(nullptr),
-        /** 
-         * TODO: figure out how to do this with variadic templates. This one is a good source
-         * https://greitemann.dev/2018/09/15/variadic-expansion-in-aggregate-initialization/ 
-        */
-        _mutex({std::mutex(), std::mutex(), std::mutex(), std::mutex(), std::mutex() }),
-        _conditions({std::condition_variable(), std::condition_variable(), std::condition_variable(), std::condition_variable(), std::condition_variable()}),
         _terminate(false), 
         _recordThread(std::thread(&Vk_GpuTask::_recordWorker, this)),
         _runningWorker(std::thread(&Vk_GpuTask::_running, this))
@@ -104,10 +111,15 @@ namespace VK5 {
         virtual ~Vk_GpuTask(){
             // std::cout << ">>>>>>>>>>>>>>>>>>> destroy task" << std::endl;
             {
-                auto scopedLock = makeScopedLock(_mutex);
+                auto scopedLock = std::scoped_lock {_stage1_alloc.mutex, _stage2_record.mutex, _stage3_submit.mutex, _stage4_running.mutex, _stage5_finished.mutex };
                 _terminate = true;
             }
-            for(int i=0; i<mCount; ++i) _conditions[i].notify_all();
+            _stage1_alloc.condition.notify_all();
+            _stage2_record.condition.notify_all();
+            _stage3_submit.condition.notify_all();
+            _stage4_running.condition.notify_all();
+            _stage5_finished.condition.notify_all();
+
             if(_recordThread.joinable()) _recordThread.join();
             if(_runningWorker.joinable()) _runningWorker.join();
             vkDestroyFence(_vkDevice, _vkFence, nullptr);
@@ -124,9 +136,8 @@ namespace VK5 {
             // wait until signaled
             // std::cout << "waiting for task to finish..." << std::endl;
 
-            int index = static_cast<int>(Vk_GpuTaskStages::Stage5_Finished);
-            auto lock = std::unique_lock<std::mutex>(_mutex[index]);
-            _conditions[index].wait_for(lock, us, [this](){ 
+            auto lock = std::unique_lock<std::mutex>(_stage5_finished.mutex);
+            _stage5_finished.condition.wait_for(lock, us, [this](){ 
                 return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; 
             });
 
@@ -138,9 +149,8 @@ namespace VK5 {
             // wait until signaled
             // std::cout << "waiting for task to finish..." << std::endl;
 
-            int index = static_cast<int>(Vk_GpuTaskStages::Stage5_Finished);
-            auto lock = std::unique_lock<std::mutex>(_mutex[index]);
-            _conditions[index].wait_for(lock, ms, [this](){ 
+            auto lock = std::unique_lock<std::mutex>(_stage5_finished.mutex);
+            _stage5_finished.condition.wait_for(lock, ms, [this](){ 
                 return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; 
             });
 
@@ -152,9 +162,8 @@ namespace VK5 {
             // wait until signaled
             // std::cout << "waiting for task to finish..." << std::endl;
 
-            int index = static_cast<int>(Vk_GpuTaskStages::Stage5_Finished);
-            auto lock = std::unique_lock<std::mutex>(_mutex[index]);
-            _conditions[index].wait(lock, [this](){ 
+            auto lock = std::unique_lock<std::mutex>(_stage5_finished.mutex);
+            _stage5_finished.condition.wait(lock, [this](){ 
                 return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; 
             });
 
@@ -165,8 +174,6 @@ namespace VK5 {
     private:
         VkFence fence() { return _vkFence; }
 
-        void resetStage(){ _stage = Vk_GpuTaskStages::Stage1_Alloc; }
-
         // stage 1 and 5 (serialized for VkCommandPool)
         void passAlloc(std::unique_ptr<Vk_GpuTask> self, VkCommandBuffer commandBuffer, Vk_QueueBase* pParentQueue){
             if(_vkCommandBuffer != nullptr) UT::Ut_Logger::RuntimeError(typeid(this), "CommandBuffer is not nullptr! Alloc before free => this is a bug!");
@@ -176,18 +183,17 @@ namespace VK5 {
 
             // goto next
             _stage = Vk_GpuTaskStages::Stage2_Record;
-            _conditions[static_cast<int>(Vk_GpuTaskStages::Stage2_Record)].notify_one();
+            _stage2_record.condition.notify_one();
             // std::cout << "T1." << std::endl;
         }
 
         void _recordWorker(){
             // std::cout << ">>>>>>>>>>>>>>>>>>> Start record worker" << std::endl;
             // run endlessly... we should techincally get one task at the time
-            int index = static_cast<int>(Vk_GpuTaskStages::Stage2_Record);
             while(true){
                 {
-                    auto lock = std::unique_lock<std::mutex>(_mutex[index]);
-                    _conditions[index].wait(lock, [this](){
+                    auto lock = std::unique_lock<std::mutex>(_stage2_record.mutex);
+                    _stage2_record.condition.wait(lock, [this](){
                         return _stage == Vk_GpuTaskStages::Stage2_Record || _terminate;
                     });
 
@@ -218,17 +224,15 @@ namespace VK5 {
 
             // goto next
             _stage = Vk_GpuTaskStages::Stage4_Running;
-            _conditions[static_cast<int>(Vk_GpuTaskStages::Stage4_Running)].notify_one();
+            _stage4_running.condition.notify_one();
         }
 
         void _running() {
             // std::cout << ">>>>>>>>>>>>>>>>>>> Start task runner" << std::endl;
-            int index = static_cast<int>(Vk_GpuTaskStages::Stage4_Running);
-            int finished = static_cast<int>(Vk_GpuTaskStages::Stage5_Finished);
             while(true) {
                 {
-                    auto lock = std::unique_lock<std::mutex>(_mutex[index]);
-                    _conditions[index].wait(lock, [this](){
+                    auto lock = std::unique_lock<std::mutex>(_stage4_running.mutex);
+                    _stage4_running.condition.wait(lock, [this](){
                         return _stage == Vk_GpuTaskStages::Stage4_Running || _terminate;
                     });
 
@@ -252,7 +256,7 @@ namespace VK5 {
                 /**
                  * NOTE: make sure all locks are released before calling notify
                  */
-                _conditions[finished].notify_all(); // everyone who is waiting
+                _stage5_finished.condition.notify_all(); // everyone who is waiting
             }
         }
 

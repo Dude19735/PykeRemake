@@ -181,9 +181,9 @@ BOOST_AUTO_TEST_CASE(TestDeviceTaskRunner, *new_test)
         });
 
         // std::stringstream ssBack;
-        // for(int i=0; i<200; ++i) ssBack << "\033[F";
+        // for(int i=0; i<200; ++i) ssBack << "\033[F"; // put cursor one line up
         // std::string back = ssBack.str();
-        std::string back = "\x1B[2J\x1B[H";
+        std::string back = "\x1B[2J\x1B[H"; // put cursor back to the top (clear console)
 
         if(iter != device.PhysicalDevices.end()){
             auto& dev = iter->second;
