@@ -92,11 +92,11 @@ namespace VK5 {
             return ss.str();
         }
 
-        Vk_GpuTask* enqueue(std::unique_ptr<Vk_GpuTask> task){
-            Vk_GpuTask* res;
+        TGpuTaskRunner enqueue(std::unique_ptr<Vk_GpuTask> task){
+            TGpuTaskRunner res;
             {
 				std::unique_lock<std::mutex> lock(_allocFreeMutex);
-                res = task.get();
+                res = reinterpret_cast<TGpuTaskRunner>(task.get());
                 _allocTasks.push(std::move(task));
 			}
 			_allocFreeCondition.notify_one();

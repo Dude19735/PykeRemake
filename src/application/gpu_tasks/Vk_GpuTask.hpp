@@ -32,7 +32,19 @@ namespace VK5 {
     };
 
     class Vk_Queue;
-    class Vk_GpuTask {
+    class Vk_GpuTaskRunner {
+        Vk_GpuOp _opType;
+    public:
+        Vk_GpuTaskRunner(Vk_GpuOp op) : _opType(op) {}
+        const Vk_GpuOp opType() const { return _opType; }
+        virtual std::unique_ptr<Vk_GpuTask> waitResponsivelyUS(std::chrono::microseconds us) = 0;
+        virtual std::unique_ptr<Vk_GpuTask> waitResponsivelyMS(std::chrono::milliseconds ms) = 0;
+        virtual std::unique_ptr<Vk_GpuTask> waitResponsively() = 0;
+    };
+
+    typedef Vk_GpuTaskRunner* TGpuTaskRunner;
+
+    class Vk_GpuTask : public Vk_GpuTaskRunner {
     friend class Vk_Queue;
         // static constexpr int mCount = static_cast<int>(Vk_GpuTaskStages::Count);
 
@@ -44,7 +56,6 @@ namespace VK5 {
         { return std::apply([](auto&... mutexes) { return std::scoped_lock{mutexes...}; }, mutexes); }
 
         VkDevice _vkDevice;
-        Vk_GpuOp _opType;
         VkFence _vkFence;
         VkCommandBuffer _vkCommandBuffer;
         VkCommandPool _vkCommandPool;
@@ -88,8 +99,8 @@ namespace VK5 {
     public:
         Vk_GpuTask(VkDevice vkDevice, Vk_GpuOp opType) 
         : 
-        _vkDevice(vkDevice), 
-        _opType(opType), 
+        Vk_GpuTaskRunner(opType),
+        _vkDevice(vkDevice),
         _vkFence(_createFence(_vkDevice)), 
         _vkCommandBuffer(nullptr), 
         _vkCommandPool(nullptr), 
@@ -125,21 +136,18 @@ namespace VK5 {
             vkDestroyFence(_vkDevice, _vkFence, nullptr);
         }
 
-        const Vk_GpuOp opType() const { return _opType; }
-        void update(const Vk_GpuTaskParams& params, TGpuTaskRecord recordFunction, TGpuTaskSubmit submitFunction) { 
+        bool update(const Vk_GpuTaskParams& params, TGpuTaskRecord recordFunction, TGpuTaskSubmit submitFunction) { 
             _params = std::move(params); 
             if(recordFunction) _recordFunction = recordFunction;
             if(submitFunction) _submitFunction = submitFunction;
+            return true;
         }
 
         std::unique_ptr<Vk_GpuTask> waitResponsivelyUS(std::chrono::microseconds us) {
             // wait until signaled
             // std::cout << "waiting for task to finish..." << std::endl;
-
             auto lock = std::unique_lock<std::mutex>(_stage5_finished.mutex);
-            _stage5_finished.condition.wait_for(lock, us, [this](){ 
-                return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; 
-            });
+            _stage5_finished.condition.wait_for(lock, us, [this](){ return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; });
 
             // std::cout << "   ... task finished" << std::endl;
             return std::move(_self);
@@ -148,11 +156,8 @@ namespace VK5 {
         std::unique_ptr<Vk_GpuTask> waitResponsivelyMS(std::chrono::milliseconds ms) {
             // wait until signaled
             // std::cout << "waiting for task to finish..." << std::endl;
-
             auto lock = std::unique_lock<std::mutex>(_stage5_finished.mutex);
-            _stage5_finished.condition.wait_for(lock, ms, [this](){ 
-                return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; 
-            });
+            _stage5_finished.condition.wait_for(lock, ms, [this](){  return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; });
 
             // std::cout << "   ... task finished" << std::endl;
             return std::move(_self);
@@ -161,19 +166,14 @@ namespace VK5 {
         std::unique_ptr<Vk_GpuTask> waitResponsively() {
             // wait until signaled
             // std::cout << "waiting for task to finish..." << std::endl;
-
             auto lock = std::unique_lock<std::mutex>(_stage5_finished.mutex);
-            _stage5_finished.condition.wait(lock, [this](){ 
-                return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; 
-            });
+            _stage5_finished.condition.wait(lock, [this](){ return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; });
 
             std::cout << "   ... task finished" << std::endl;
             return std::move(_self);
         }
 
     private:
-        VkFence fence() { return _vkFence; }
-
         // stage 1 and 5 (serialized for VkCommandPool)
         void passAlloc(std::unique_ptr<Vk_GpuTask> self, VkCommandBuffer commandBuffer, Vk_QueueBase* pParentQueue){
             if(_vkCommandBuffer != nullptr) UT::Ut_Logger::RuntimeError(typeid(this), "CommandBuffer is not nullptr! Alloc before free => this is a bug!");
