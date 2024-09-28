@@ -75,6 +75,14 @@ endif()
 add_subdirectory(src)
 add_subdirectory(tests)
 
+file(GLOB SOURCES
+    ./src/application/*.h
+    ./src/application/*.cpp
+)
+
+add_library(SrcLib ${SOURCES})
+
+
 ##########################################################################################################
 # all tests
 add_executable(vk5_test_all "tests/vk5_test_all.cpp")
@@ -83,10 +91,10 @@ target_include_directories(vk5_test_all PRIVATE ${Boost_INCLUDE_DIRS} ${glm_INCL
 # target_link_libraries(test_VK5_application ExternalLib)
 if(UNIX)
     target_include_directories(vk5_test_all PRIVATE ${X11_INCLUDE_DIR})
-    target_link_libraries(vk5_test_all ${Vulkan_LIBRARIES} ${X11_LIBRARIES} ${X11_xcb_LIB})
+    target_link_libraries(vk5_test_all SrcLib ${Vulkan_LIBRARIES} ${X11_LIBRARIES} ${X11_xcb_LIB})
 elseif(WIN32)
     target_link_directories(vk5_test_all PRIVATE ${Vulkan_LIBRARIES})
-    target_link_libraries(vk5_test_all vulkan-1)
+    target_link_libraries(vk5_test_all SrcLib vulkan-1)
     add_custom_command( # compile shaders and put them inside an h file
         TARGET vk5_test_all
         PRE_BUILD
