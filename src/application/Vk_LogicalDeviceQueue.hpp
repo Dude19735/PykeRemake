@@ -4,7 +4,7 @@
 #include "../Vk_CI.hpp"
 #include "Vk_LogicalDeviceQueueLib.hpp"
 #include "Vk_PhysicalDeviceQueue.hpp"
-#include "Vk_Queue.hpp"
+#include "./gpu_tasks/Vk_Queue.hpp"
 
 namespace VK5 {
     class Vk_LogicalDeviceQueue {
@@ -12,13 +12,11 @@ namespace VK5 {
         VkDevice _vkDevice;
         // this one is an array becuase it has to be allocated at runtime and really has 
         // to stay where it is afterwards (std::vector doesn't necessarily do that)
-        // _logicalQueues is NOT indexed using the queue family index. It only contains the queue families
+        // _logicalQueueFamilies is NOT indexed using the queue family index. It only contains the queue families
         // that can actually be used, given the Vk_GpuOp priorities. For example, if queue families 0 and 2 are used
-        // then family 0 is at index 0 but family 2 is at index 1. If _logicalQueues is then indexed using the family indices
+        // then family 0 is at index 0 but family 2 is at index 1. If _logicalQueueFamilies is then indexed using the family indices
         //  => garbage-memory-out-of-bounds!
-        TLogicalQueuesSize _logicalQueuesSize;
-        std::unordered_map<TQueueFamilyIndex, TLogicalQueueIndex> _lqMap;
-        std::unique_ptr<TLogicalQueues[]> _logicalQueues;
+        std::unique_ptr<TLogicalQueueFamilies> _logicalQueueFamilies;
 
         // Map that maps all DeviceQueues queues capable of performing Vk_OpX to that operation
         // An access consists of 
@@ -32,84 +30,71 @@ namespace VK5 {
         //    ...
         //   Vk_OpN: vec{[&stack of queue family with Vk_OpN as priority 1], ..., [&stack of queue family with Vk_OpN as priority M]}
         // }
-        TLogicalQueuesOpMap _queuesOpMap;
+        TLogicalQueuesOpFamilyMap _queuesOpMap;
 
         std::mutex _mutex;
     public:
         Vk_LogicalDeviceQueue(VkDevice device, const Vk_PhysicalDeviceQueue& physicalDeviceQueue)
         :
         _vkDevice(device),
-        _logicalQueues(_createLogicalQueues(_vkDevice, physicalDeviceQueue.queueFamilyMap(), _logicalQueuesSize, _lqMap)),
-        _queuesOpMap(Vk_LogicalDeviceQueueLib::createLogicalQueuesOpMap(physicalDeviceQueue.queueFamilyMap(), physicalDeviceQueue.queueFamilies(), _logicalQueues.get(), _lqMap, _logicalQueuesSize))
+        _logicalQueueFamilies(std::move(_createLogicalQueues(_vkDevice, physicalDeviceQueue.queueFamilyMap()))),
+        _queuesOpMap(Vk_LogicalDeviceQueueLib::createLogicalQueuesOpMap(physicalDeviceQueue.queueFamilyMap(), physicalDeviceQueue.queueFamilies()))
         {}
 
         Vk_LogicalDeviceQueue(Vk_LogicalDeviceQueue& other) = delete;
         Vk_LogicalDeviceQueue(Vk_LogicalDeviceQueue&& other) noexcept
         :
         _vkDevice(other._vkDevice),
-        _logicalQueues(std::move(other._logicalQueues)),
-        _logicalQueuesSize(other._logicalQueuesSize),
+        _logicalQueueFamilies(std::move(other._logicalQueueFamilies)),
         _queuesOpMap(std::move(other._queuesOpMap))
         {
             other._vkDevice = nullptr;
-            other._logicalQueuesSize = 0;
         }
 
         Vk_LogicalDeviceQueue& operator=(const Vk_LogicalDeviceQueue& other) = delete;
         Vk_LogicalDeviceQueue& operator=(Vk_LogicalDeviceQueue&& other) noexcept {
             _vkDevice = other._vkDevice;
-            _logicalQueuesSize = other._logicalQueuesSize;
-            _logicalQueues = std::move(other._logicalQueues);
+            _logicalQueueFamilies = std::move(other._logicalQueueFamilies);
 
             other._vkDevice = nullptr;
-            other._logicalQueuesSize = 0;
 
             return *this;
         }
 
-        ~Vk_LogicalDeviceQueue(){
-            if(_logicalQueues != nullptr){
-                // remove all the queues as soon as they are idle
-                for(TQueueIndex i=0; i<_logicalQueuesSize; ++i) _logicalQueues[i].clear();
-            }
-        }
+        ~Vk_LogicalDeviceQueue(){}
 
-        const TLogicalQueuesOpMap& queuesOpMap() const { return _queuesOpMap; }
+        const TLogicalQueuesOpFamilyMap& queuesOpMap() const { return _queuesOpMap; }
+        const TLogicalQueueFamilies& queueFamilies() const { return *_logicalQueueFamilies.get(); }
 
-        bool enqueue(Vk_GpuTask* task) {
-            // Gpu_Op not available
-            if(!_queuesOpMap.contains(task->opType())) return false;
+        std::unique_ptr<Vk_Queue> getQueue(Vk_GpuOp opType) {
+            if(!_queuesOpMap.contains(opType)) return nullptr;
 
-            auto& queues = _queuesOpMap.at(task->opType());
+            const auto& opFamilyIndices = _queuesOpMap.at(opType);
             // no queues for Gpu_Op available
-            if(queues.size() == 0) return false;
+            if(opFamilyIndices.size() == 0) return nullptr;
 
             std::unique_ptr<Vk_Queue> queue = nullptr;
-            TLogicalQueues* lQueues = nullptr;
             {
                 auto lock = std::lock_guard<std::mutex>(_mutex);
-                for(auto q : queues){
-                    if(q->size() > 0){
-                        queue = std::move(q->front());
-                        q->pop_front();
-                        lQueues = q;
+                for(auto familyIndex : opFamilyIndices){
+                    auto& queueList = _logicalQueueFamilies->at(familyIndex);
+                    if(queueList.size() > 0){
+                        queue = std::move(queueList.front());
+                        queueList.pop_front();
                         break;
                     }
                 }
-                // no queue available
-                if(queue == nullptr) return false;
             }
+            return std::move(queue);
+        }
 
-            // unique Vk_Queue for the task
-            queue->enqueue(task);
-            {
-                auto lock = std::lock_guard<std::mutex>(_mutex);
-                lQueues->emplace_back(std::move(queue));
-            }
+        void addQueue(Vk_GpuOp optype, std::unique_ptr<Vk_Queue> queue){
+            auto lock = std::lock_guard<std::mutex>(_mutex);
+            _logicalQueueFamilies->at(queue->familyIndex()).emplace_back(std::move(queue));
         }
 
     private:
-        static std::unique_ptr<TLogicalQueues[]> _createLogicalQueues(VkDevice device, const TDeviceQueueFamilyMap& queueFamilyMap, /*out*/TLogicalQueuesSize& logicalQueuesSize, /*out*/std::unordered_map<TQueueFamilyIndex, TLogicalQueueIndex>& lqMap){
+        std::unique_ptr<TLogicalQueueFamilies> _createLogicalQueues(VkDevice device, const TDeviceQueueFamilyMap& queueFamilyMap){
             // get the queues for all queue families and organize them in a stack
             std::map<TQueueFamilyIndex, std::vector<TQueueIndex>> map;
             for(const auto& family : queueFamilyMap) {
@@ -121,21 +106,13 @@ namespace VK5 {
             };
 
             // move all stacks into an array, ordered by the queue family index
-            logicalQueuesSize = map.size();
-            std::unique_ptr<TLogicalQueues[]> logicalQueues = std::make_unique<TLogicalQueues[]>(logicalQueuesSize);
-            size_t s=0;
+            std::unique_ptr<TLogicalQueueFamilies> logicalQueues = std::make_unique<TLogicalQueueFamilies>();
             for(const auto& family : map){
-                auto& ll = logicalQueues[s];
-                for(const auto& queueIndex : family.second)
+                TQueueFamilyIndex familyIndex = family.first;
+                if(!logicalQueues->contains(familyIndex)) logicalQueues->insert({familyIndex, {}});
+                auto& ll = logicalQueues->at(familyIndex);
+                for(const TQueueIndex& queueIndex : family.second)
                     ll.push_back(std::make_unique<Vk_Queue>(device, family.first, queueIndex));
-                s++;
-            }
-
-            // map family index to logicalQueues index (logicalQueues is a simple array where the indexes don't necessarily correspond
-            // to the family indexes)
-            for(TLogicalQueueIndex s=0; s<logicalQueuesSize; ++s){
-                const auto& q = *(logicalQueues[s].begin());
-                lqMap.insert({q->familyIndex(), s});
             }
 
             return logicalQueues;

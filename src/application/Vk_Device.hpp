@@ -37,7 +37,7 @@ namespace VK5 {
 			Vk_PhysicalDeviceLib::physicalDevicesToStream(pr, qf, out);
 		}
 
-		void logicalDeviceQueuesToStream(std::ostream& stream){
+		size_t logicalDeviceQueuesToStream(std::ostream& stream){
             tabulate::Table table;
 			auto rs = tabulate::RowStream{};
             for(const auto& pd : PhysicalDevices){
@@ -47,22 +47,25 @@ namespace VK5 {
 			
 			auto subRs = tabulate::RowStream{};
 			for(const auto& pd : PhysicalDevices){
-				const auto& queueOpMap = pd.second.logicalDeviceQueues().queuesOpMap();
+				const auto& queuesOpMap = pd.second.logicalDeviceQueue().queuesOpMap();
+				const auto& queueFamilies = pd.second.logicalDeviceQueue().queueFamilies();
 				tabulate::Table opTable;
 				auto opRow = tabulate::RowStream{};
-				for(const auto& queues : queueOpMap){
+				for(const auto& queues : queuesOpMap){
 					opRow << Vk_GpuOp2String(queues.first);
 				}
 
 				auto opRow2 = tabulate::RowStream{};
 				std::vector<int> count;
-				for(const auto& queues : queueOpMap){
+				for(const auto& queueOpFamilies : queuesOpMap){
 					tabulate::Table tt;
 					tt.format().hide_border();
 					tt.add_row({"FI", "QI"});
 					int index = 0;
-					for(const auto& queue : queues.second){
-						for(const auto& q : *queue){
+					auto& op = queueOpFamilies.first;
+					for(const TQueueFamilyIndex& queueFamilyIndex : queueOpFamilies.second){
+						const auto& queue = queueFamilies.at(queueFamilyIndex);
+						for(const auto& q : queue){
 							auto qstr = q->toString();
 							int ind = qstr.find('|');
 							tt.add_row({qstr.substr(0, ind), qstr.substr(ind+1, qstr.size() - ind-1) });
@@ -88,6 +91,7 @@ namespace VK5 {
 			table.add_row(subRs);
 
 			stream << table << std::endl;;
+			return 0;
         }
 
 	private:

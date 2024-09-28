@@ -16,7 +16,7 @@ namespace VK5 {
         Vk_PhysicalDeviceLib::PhysicalDevicePR _pr;
         Vk_PhysicalDeviceQueue _physicalDeviceQueues;
         Vk_LogicalDevice _logicalDevice;
-        Vk_LogicalDeviceQueue _logicalDeviceQueues;
+        Vk_LogicalDeviceQueue _logicalDeviceQueue;
     public:
         /**
          * Enumerate all available physical devices.
@@ -52,7 +52,7 @@ namespace VK5 {
         _pr(pr),
         _physicalDeviceQueues(physicalDevice, opPriorities),
         _logicalDevice(_physicalDevice, _pr, _physicalDeviceQueues),
-        _logicalDeviceQueues(_logicalDevice.vk_device(), _physicalDeviceQueues)
+        _logicalDeviceQueue(_logicalDevice.vk_device(), _physicalDeviceQueues)
         {}
 
         Vk_PhysicalDevice(const Vk_PhysicalDevice& other) = delete;
@@ -63,7 +63,7 @@ namespace VK5 {
         _pr(std::move(other._pr)),
         _physicalDeviceQueues(std::move(other._physicalDeviceQueues)),
         _logicalDevice(std::move(other._logicalDevice)),
-        _logicalDeviceQueues(std::move(other._logicalDeviceQueues))
+        _logicalDeviceQueue(std::move(other._logicalDeviceQueue))
         {
             other._physicalDevice = nullptr;
         }
@@ -75,7 +75,7 @@ namespace VK5 {
             _pr = std::move(other._pr);
             _physicalDeviceQueues = std::move(other._physicalDeviceQueues);
             _logicalDevice = std::move(other._logicalDevice);
-            _logicalDeviceQueues = std::move(other._logicalDeviceQueues);
+            _logicalDeviceQueue = std::move(other._logicalDeviceQueue);
 
             other._physicalDevice = nullptr;
 
@@ -85,8 +85,23 @@ namespace VK5 {
         ~Vk_PhysicalDevice(){}
 
         VkPhysicalDevice vk_physicalDevice() const { return _physicalDevice; }
+        VkDevice vk_logicalDevice() const { return _logicalDevice.vk_device(); }
         const Vk_PhysicalDeviceLib::PhysicalDevicePR& physicalDevicePR() const { return _pr; }
         const Vk_PhysicalDeviceQueue& physicalDeviceQueues() const { return _physicalDeviceQueues; }
-        const Vk_LogicalDeviceQueue& logicalDeviceQueues() const { return _logicalDeviceQueues; }
+        const Vk_LogicalDeviceQueue& logicalDeviceQueue() const { return _logicalDeviceQueue; }
+        
+        Vk_GpuTask* enqueue(Vk_GpuOp op, std::unique_ptr<Vk_GpuTask> task){
+            std::unique_ptr<Vk_Queue> queue = nullptr;
+            while(!queue) queue = _logicalDeviceQueue.getQueue(op);
+            Vk_GpuTask* res = queue->enqueue(std::move(task));
+            _logicalDeviceQueue.addQueue(op, std::move(queue));
+            return res;
+        }
+
+        /**
+         * TODO: testing: put into corresponding braces at some point
+         */
+        std::unique_ptr<Vk_Queue> getQueue(Vk_GpuOp op) { return std::move(_logicalDeviceQueue.getQueue(op)); }
+        void addQueue(Vk_GpuOp op, std::unique_ptr<Vk_Queue> queue){ _logicalDeviceQueue.addQueue(op, std::move(queue)); }
     };
 }

@@ -11,12 +11,12 @@ namespace VK5 {
     class Vk_Queue;
     typedef TQueueSize TLogicalQueuesSize;
     typedef TQueueFamilyIndex TLogicalQueueIndex;
-    typedef std::list<std::unique_ptr<Vk_Queue>> TLogicalQueues;
-    typedef std::unordered_map<Vk_GpuOp, std::vector<TLogicalQueues*>> TLogicalQueuesOpMap;
+    typedef std::unordered_map<TQueueFamilyIndex, std::list<std::unique_ptr<Vk_Queue>>> TLogicalQueueFamilies;
+    typedef std::unordered_map<Vk_GpuOp, std::vector<TQueueFamilyIndex>> TLogicalQueuesOpFamilyMap;
 
     class Vk_LogicalDeviceQueueLib {
     public:
-        static TLogicalQueuesOpMap createLogicalQueuesOpMap(const TDeviceQueueFamilyMap& queueFamilyMap, const TQueueFamilies& queueFamilies, TLogicalQueues* logicalQueues, const std::unordered_map<TQueueFamilyIndex, TLogicalQueueIndex>& lqMap, const TLogicalQueuesSize logicalQueuesSize) {
+        static TLogicalQueuesOpFamilyMap createLogicalQueuesOpMap(const TDeviceQueueFamilyMap& queueFamilyMap, const TQueueFamilies& queueFamilies) {
             // check if we have a situation, for example with Compute > Graphics > Transfer. We may get
             // that we have X queues that can do Compute and Graphics and Transfer, Y queues that can do Compute and Transfer
             // and Z queues that can only do Transfer. Assume, prioMap looks as follows:
@@ -68,7 +68,7 @@ namespace VK5 {
             //   ...
             //  Vk_OpN: vec{[&stack of queue family with Vk_OpN as priority 1], ..., [&stack of queue family with Vk_OpN as priority M]}
             // }
-            TLogicalQueuesOpMap queuesOpMap;
+            TLogicalQueuesOpFamilyMap queuesOpMap;
             for(const auto& pm : prioMap){
                 auto& op = pm.first;
                 auto& map = pm.second;
@@ -86,7 +86,7 @@ namespace VK5 {
                         // logicalQueues.
                         // This is a bit complicated, but since, outside of this, we only use queuesOpMap, which is safe and everything,
                         // it's fine.
-                        vec.push_back(&logicalQueues[lqMap.at(queueFamilyIndex)]);
+                        vec.push_back(queueFamilyIndex);
                     }
                 }
             }
