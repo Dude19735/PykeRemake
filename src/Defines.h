@@ -222,49 +222,49 @@ namespace VK5 {
         }
     }
 
-    std::mutex queue_submit_mutex;
-	std::mutex queue_wait_idle_mutex;
-	std::mutex device_wait_idle_mutex;
+    // std::mutex queue_submit_mutex;
+	// std::mutex queue_wait_idle_mutex;
+	// std::mutex device_wait_idle_mutex;
 
-    class Vk_ThreadSafe {
-	public:
-		static VkResult Vk_ThreadSafe_QueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo* pSubmits, VkFence fence){
-			VkResult res;
-			{
-				/*
-				TODO: this one really needs a VkFence: vkQueueSubmit must finish before a new one can
-				be called 
-					=> only possible with a fence.
-					=> use mutex to do CPU sided mutual exclusion and a fence for GPU sided mutual exclusion
-					=> maybe there is a more secure way... => find some book?
-				*/
-				std::cout << "wait for queue submit: " << std::this_thread::get_id() << std::endl;
-				auto lock = std::lock_guard<std::mutex>(queue_submit_mutex);
-				std::cout << "got queue submit: " << std::this_thread::get_id() << std::endl;
-				res = vkQueueSubmit(queue, submitCount, pSubmits, fence);
-			}
-			std::cout << "left queue submit: " << std::this_thread::get_id() << std::endl;
-			return res;
-		}
+    // class Vk_ThreadSafe {
+	// public:
+	// 	static VkResult Vk_ThreadSafe_QueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo* pSubmits, VkFence fence){
+	// 		VkResult res;
+	// 		{
+	// 			/*
+	// 			TODO: this one really needs a VkFence: vkQueueSubmit must finish before a new one can
+	// 			be called 
+	// 				=> only possible with a fence.
+	// 				=> use mutex to do CPU sided mutual exclusion and a fence for GPU sided mutual exclusion
+	// 				=> maybe there is a more secure way... => find some book?
+	// 			*/
+	// 			std::cout << "wait for queue submit: " << std::this_thread::get_id() << std::endl;
+	// 			auto lock = std::lock_guard<std::mutex>(queue_submit_mutex);
+	// 			std::cout << "got queue submit: " << std::this_thread::get_id() << std::endl;
+	// 			res = vkQueueSubmit(queue, submitCount, pSubmits, fence);
+	// 		}
+	// 		std::cout << "left queue submit: " << std::this_thread::get_id() << std::endl;
+	// 		return res;
+	// 	}
 
-		static VkResult Vk_ThreadSafe_QueueWaitIdle(VkQueue queue){
-			VkResult res;
-			{
-				auto lock = std::lock_guard<std::mutex>(queue_wait_idle_mutex);
-				res = vkQueueWaitIdle(queue);
-			}
-			return res;
-		}
+	// 	static VkResult Vk_ThreadSafe_QueueWaitIdle(VkQueue queue){
+	// 		VkResult res;
+	// 		{
+	// 			auto lock = std::lock_guard<std::mutex>(queue_wait_idle_mutex);
+	// 			res = vkQueueWaitIdle(queue);
+	// 		}
+	// 		return res;
+	// 	}
 
-		static VkResult Vk_ThreadSafe_DeviceWaitIdle(VkDevice device){
-			VkResult res;
-			{
-				auto lock = std::lock_guard<std::mutex>(device_wait_idle_mutex);
-				res = vkDeviceWaitIdle(device);
-			}
-			return res;
-		}
-	};
+	// 	static VkResult Vk_ThreadSafe_DeviceWaitIdle(VkDevice device){
+	// 		VkResult res;
+	// 		{
+	// 			auto lock = std::lock_guard<std::mutex>(device_wait_idle_mutex);
+	// 			res = vkDeviceWaitIdle(device);
+	// 		}
+	// 		return res;
+	// 	}
+	// };
 }
 
 // std specializations

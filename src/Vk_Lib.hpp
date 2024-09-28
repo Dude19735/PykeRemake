@@ -17,7 +17,7 @@ namespace VK5 {
 		}
 
 		static std::string formatWithObjName(std::string name, std::string message) {
-			return std::string("[") + name + std::string("] ") + message;
+			return std::vformat("[{0}] {1}", std::make_format_args(name, message));
 		}
 
 		static double round(double value, int decimals) {
@@ -90,7 +90,7 @@ namespace VK5 {
 				case VK_ERROR_COMPRESSION_EXHAUSTED_EXT: return "VK_ERROR_COMPRESSION_EXHAUSTED_EXT";
 				case VK_ERROR_INCOMPATIBLE_SHADER_BINARY_EXT: return "VK_ERROR_INCOMPATIBLE_SHADER_BINARY_EXT";
 				case VK_RESULT_MAX_ENUM: return "VK_RESULT_MAX_ENUM";
-				default: return "VK_NON_REGISTERED_ERROR_CODE";
+				default: return "VK_ERROR_UNKNOWN";
 			}
 		}
 
@@ -104,9 +104,80 @@ namespace VK5 {
 				case VK_QUEUE_VIDEO_DECODE_BIT_KHR: return "VK_QUEUE_VIDEO_DECODE_BIT_KHR";
 				case VK_QUEUE_VIDEO_ENCODE_BIT_KHR: return "VK_QUEUE_VIDEO_ENCODE_BIT_KHR";
 				case VK_QUEUE_OPTICAL_FLOW_BIT_NV: return "VK_QUEUE_OPTICAL_FLOW_BIT_NV";
-				case VK_QUEUE_FLAG_BITS_MAX_ENUM: return "VK_QUEUE_FLAG_BITS_MAX_ENU";
-				default: return "UNKNOWN_VK_QUEUE";
+				default: return "VK_QUEUE_UNKNOWN";
 			}
 		};
+
+		static std::string Vk_CropVkQueueFlagBitsStr(const std::string& propStr){
+            std::vector<int> inds;
+            int i=0;
+            for(const auto& c : propStr) {
+                if(c == '_') inds.push_back(i);
+                i++;
+            }
+
+			if(propStr.ends_with("_BIT_KHR")) 
+				return std::string(propStr.begin()+inds.at(1)+1, propStr.begin()+inds.back()-1) + " (KHR)";
+			else if(propStr.ends_with("_BIT_NV")) 
+				return std::string(propStr.begin()+inds.at(1)+1, propStr.begin()+inds.back()-1) + " (NV)";
+            return std::string(propStr.begin()+inds.at(1)+1, propStr.begin()+inds.back());
+        }
+
+		static std::string Vk_VkQueueFlagBitsSet2Str(const std::set<VkQueueFlagBits>& propBits){
+            std::stringstream res;
+            size_t s = propBits.size();
+            int i=0; 
+            for(const auto& p : propBits){
+                res << Vk_CropVkQueueFlagBitsStr(Vk_VkQueueFlagBits2String(p));
+                if(i < s-1) res << " | ";
+                i++;
+            }
+            return res.str();
+        }
+
+		static std::string Vk_VkMemoryPropertyFlags2String(const VkMemoryPropertyFlags flags) {
+			switch (flags) {
+				case 0: return "VK_MEMORY_PROPERTY_HOST_LOCAL/SHARED_BIT";
+				case VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: return "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT";
+				case VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT: return "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT";
+				case VK_MEMORY_PROPERTY_HOST_COHERENT_BIT: return "VK_MEMORY_PROPERTY_HOST_COHERENT_BIT";
+				case VK_MEMORY_PROPERTY_HOST_CACHED_BIT: return "VK_MEMORY_PROPERTY_HOST_CACHED_BIT";
+				case VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT: return "VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT";
+				case VK_MEMORY_PROPERTY_PROTECTED_BIT: return "VK_MEMORY_PROPERTY_PROTECTED_BIT";
+				case VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD: return "VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD";
+				case VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD: return "VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD";
+				case VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV: return "VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV";
+				default: return "VK_MEMORY_PROPERTY_UNKNOWN";
+			}
+		}
+
+		static std::string Vk_CropVkMemoryPropertyFlagsStr(const std::string& flagsStr){
+            std::vector<int> inds;
+            int i=0;
+            for(const auto& c : flagsStr) {
+                if(c == '_') inds.push_back(i);
+                i++;
+            }
+
+			if(flagsStr.ends_with("_BIT_KHR")) 
+				return std::string(flagsStr.begin()+inds.at(2)+1, flagsStr.begin()+inds.back()-1) + " (KHR)";
+			else if(flagsStr.ends_with("_BIT_NV")) return std::string(flagsStr.begin()+inds.at(2)+1, flagsStr.begin()+inds.back()-1) + " (NV)";
+			else if(flagsStr.ends_with("_BIT_AMD")) return std::string(flagsStr.begin()+inds.at(2)+1, flagsStr.begin()+inds.back()-1) + " (AMD)";
+            return std::string(flagsStr.begin()+inds.at(2)+1, flagsStr.begin()+inds.back());
+        }
+
+		static std::string Vk_VkMemoryPropertyFlagsSet2Str(const std::set<VkMemoryPropertyFlagBits>& propBits){
+			if(propBits.empty()) return Vk_CropVkMemoryPropertyFlagsStr(Vk_VkMemoryPropertyFlags2String(0));
+			
+            std::stringstream res;
+            size_t s = propBits.size();
+            int i=0; 
+            for(const auto& p : propBits){
+                res << Vk_CropVkMemoryPropertyFlagsStr(Vk_VkMemoryPropertyFlags2String(p));
+                if(i < s-1) res << " | ";
+                i++;
+            }
+            return res.str();
+        }
     };
 }

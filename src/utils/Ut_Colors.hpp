@@ -22,23 +22,24 @@ namespace UT {
 		float L, a, b;
 	};
 
-    namespace RGB {
-        Ut_RGBColor Red     { 1.0f, 0.0f, 0.0f };
-        Ut_RGBColor Green   { 0.0f, 1.0f, 0.0f };
-        Ut_RGBColor Olive   { 0.5f, 0.5f, 0.0f };
-        Ut_RGBColor Blue    { 0.0f, 0.0f, 1.0f };
-        Ut_RGBColor Navy    { 0.0f, 0.0f, 0.5f };
-        Ut_RGBColor Yellow  { 1.0f, 1.0f, 0.0f };
-        Ut_RGBColor Magenta { 1.0f, 0.0f, 0.0f };
-        Ut_RGBColor Cyan    { 0.0f, 1.0f, 1.0f };
-        Ut_RGBColor Teal    { 0.0f, 0.5f, 0.5f };
-        Ut_RGBColor Black   { 0.0f, 0.0f, 0.0f };
-        Ut_RGBColor White   { 1.0f, 1.0f, 1.0f };
-        Ut_RGBColor Sliver  { 0.764705882f, 0.764705882f, 0.764705882f };
-        Ut_RGBColor Gray    { 0.5f, 0.5f, 0.5f };
-        Ut_RGBColor Maroon  { 0.5f, 0.0f, 0.0f };
-        Ut_RGBColor Purple  { 0.5f, 0.0f, 0.5f };
-    }
+    class RGB {
+    public:
+        static constexpr Ut_RGBColor Red     { 1.0f, 0.0f, 0.0f };
+        static constexpr Ut_RGBColor Green   { 0.0f, 1.0f, 0.0f };
+        static constexpr Ut_RGBColor Olive   { 0.5f, 0.5f, 0.0f };
+        static constexpr Ut_RGBColor Blue    { 0.0f, 0.0f, 1.0f };
+        static constexpr Ut_RGBColor Navy    { 0.0f, 0.0f, 0.5f };
+        static constexpr Ut_RGBColor Yellow  { 1.0f, 1.0f, 0.0f };
+        static constexpr Ut_RGBColor Magenta { 1.0f, 0.0f, 0.0f };
+        static constexpr Ut_RGBColor Cyan    { 0.0f, 1.0f, 1.0f };
+        static constexpr Ut_RGBColor Teal    { 0.0f, 0.5f, 0.5f };
+        static constexpr Ut_RGBColor Black   { 0.0f, 0.0f, 0.0f };
+        static constexpr Ut_RGBColor White   { 1.0f, 1.0f, 1.0f };
+        static constexpr Ut_RGBColor Sliver  { 0.764705882f, 0.764705882f, 0.764705882f };
+        static constexpr Ut_RGBColor Gray    { 0.5f, 0.5f, 0.5f };
+        static constexpr Ut_RGBColor Maroon  { 0.5f, 0.0f, 0.0f };
+        static constexpr Ut_RGBColor Purple  { 0.5f, 0.0f, 0.5f };
+    };
 
     /**
     * Name            FG  BG
