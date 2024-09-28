@@ -110,13 +110,105 @@ BOOST_AUTO_TEST_CASE(TestDeviceInit1, *all_tests)
     ff.close();
 }
 
-BOOST_AUTO_TEST_CASE(TestDeviceQueuePrio, *new_test)
+void record(VkCommandBuffer cb, const VK5::Vk_GpuTaskParams& params){
+
+}
+
+void submit(VkCommandBuffer cb, VkQueue queue, const VK5::Vk_GpuTaskParams& params){
+    
+}
+
+BOOST_AUTO_TEST_CASE(TestDeviceQueuePrio, *all_tests)
 {
     {
         std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Compute, VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer};
         VK5::Vk_Device device("test", VK5::Vk_DevicePreference::USE_ANY_GPU, priorities);
         device.physicalDevicesToStream(std::cout);
         device.logicalDeviceQueuesToStream(std::cout);
+
+        auto iter = std::find_if(device.PhysicalDevices.begin(), device.PhysicalDevices.end(), [](const auto& device){
+            return device.second.physicalDevicePR().properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+        });
+        if(iter != device.PhysicalDevices.end()){
+            auto& dev = iter->second;
+            // get queue
+            std::list<std::unique_ptr<VK5::Vk_Queue>> buffer;
+            std::unique_ptr<VK5::Vk_Queue> queue = nullptr;
+
+            auto task = std::make_unique<VK5::Vk_GpuTask>(dev.vk_logicalDevice(), VK5::Vk_GpuOp::Graphics);
+            while(true) {
+                queue = dev.getQueue(VK5::Vk_GpuOp::Graphics);
+                if(queue){
+                    std::cout << "===========================================================" << std::endl;
+                    std::cout << "Queue for " << VK5::Vk_GpuOp2String(VK5::Vk_GpuOp::Graphics) << ": " << queue->toString() << std::endl;
+                    std::cout << "===========================================================" << std::endl;
+                    device.logicalDeviceQueuesToStream(std::cout);
+
+                    task = queue->enqueue(std::move(task))->waitResponsively();
+
+                    buffer.emplace_back(std::move(queue));
+                }
+                else{
+                    break;
+                }
+            }
+
+            std::cout << "===========================================================" << std::endl;
+            std::cout << "Empty... => put all back..." << std::endl;
+            std::cout << "===========================================================" << std::endl;
+
+            while(!buffer.empty()){
+                task = buffer.front()->enqueue(std::move(task))->waitResponsively();
+                dev.addQueue(VK5::Vk_GpuOp::Graphics, std::move(buffer.front()));
+                buffer.pop_front();
+                std::cout << "===========================================================" << std::endl;
+                device.logicalDeviceQueuesToStream(std::cout);
+            }
+        }
+    }
+}
+
+BOOST_AUTO_TEST_CASE(TestDeviceTaskRunner, *new_test)
+{
+    {
+        std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Compute, VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer};
+        VK5::Vk_Device device("test", VK5::Vk_DevicePreference::USE_ANY_GPU, priorities);
+        device.physicalDevicesToStream(std::cout);
+        device.logicalDeviceQueuesToStream(std::cout);
+
+        auto iter = std::find_if(device.PhysicalDevices.begin(), device.PhysicalDevices.end(), [](const auto& device){
+            return device.second.physicalDevicePR().properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+        });
+
+        // std::stringstream ssBack;
+        // for(int i=0; i<200; ++i) ssBack << "\033[F";
+        // std::string back = ssBack.str();
+        std::string back = "\x1B[2J\x1B[H";
+
+        if(iter != device.PhysicalDevices.end()){
+            auto& dev = iter->second;
+            // get queue
+            std::list<std::unique_ptr<VK5::Vk_Queue>> buffer;
+            std::unique_ptr<VK5::Vk_Queue> queue = nullptr;
+
+            std::list<std::unique_ptr<VK5::Vk_GpuTask>> taskList;
+            for(int i=0; i<100; ++i)
+                taskList.emplace_back(std::make_unique<VK5::Vk_GpuTask>(dev.vk_logicalDevice(), VK5::Vk_GpuOp::Graphics));
+
+            std::list<VK5::Vk_GpuTask*> running;
+
+            while(!taskList.empty()) {
+                running.emplace_back(dev.enqueue(VK5::Vk_GpuOp::Graphics, std::move(taskList.front())));
+                taskList.pop_front();
+                std::cout << back;
+                device.logicalDeviceQueuesToStream(std::cout);
+            }
+            while(!running.empty()){
+                taskList.emplace_back(running.front()->waitResponsively());
+                running.pop_front();
+            }
+            std::cout << "Finished all tasks: " << taskList.size() << std::endl;
+        }
     }
 }
 
