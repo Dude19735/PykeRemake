@@ -102,7 +102,7 @@ namespace VK5 {
 						physicalDeviceName,
 						physicalDeviceIndex,
 						std::to_string(family.queueFamilyIndex),
-						Vk_PhysicalDeviceQueueLib::queueFamilyFlagBitsSet2Str(family.flagBits),
+						Vk_Lib::Vk_VkQueueFlagBitsSet2Str(family.flagBits),
                         Vk_PhysicalDeviceQueueLib::queueFamilyOpPriorityVec2Str(family.opPriorities),
 						std::to_string(family.queueCount),
 						std::string("[") + famMinGranW + ","  + famMinGranH + "," + famMinGranD + "]",

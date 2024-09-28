@@ -53,6 +53,7 @@ namespace VK5 {
 
         Vk_LogicalDeviceQueue& operator=(const Vk_LogicalDeviceQueue& other) = delete;
         Vk_LogicalDeviceQueue& operator=(Vk_LogicalDeviceQueue&& other) noexcept {
+            if(this == &other) return *this;
             _vkDevice = other._vkDevice;
             _logicalQueueFamilies = std::move(other._logicalQueueFamilies);
 

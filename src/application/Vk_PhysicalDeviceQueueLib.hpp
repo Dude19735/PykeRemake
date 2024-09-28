@@ -31,6 +31,10 @@ namespace VK5 {
 
     class Vk_PhysicalDeviceQueueLib {
     private:
+        /**
+         * NOTE: this is to not have to iterate over all possible values of VkQueueFlagBits
+         * which is VK_QUEUE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
+         */
         static inline const std::set<VkQueueFlagBits> _allFlagBits = {
             VK_QUEUE_GRAPHICS_BIT,
             VK_QUEUE_COMPUTE_BIT,
@@ -60,17 +64,7 @@ namespace VK5 {
             return _queryQueueFamiliesCapabilities(physicalDevice, queueFamilies, opPriorities);
         }
 
-        static std::string queueFamilyFlagBitsSet2Str(const std::set<VkQueueFlagBits>& propBits){
-            std::stringstream res;
-            size_t s = propBits.size();
-            int i=0; 
-            for(const auto& p : propBits){
-                res << _cropQueueFamilyPropertyStr(_queueFlagBits2String(p));
-                if(i < s-1) res << " | ";
-                i++;
-            }
-            return res.str();
-        }
+        
 
         static std::string queueFamilyOpPriorityVec2Str(const std::vector<Vk_GpuOp>& opPriorities){
             std::stringstream res;
@@ -189,32 +183,5 @@ namespace VK5 {
             // }
             return types;
         }
-
-        static std::string _cropQueueFamilyPropertyStr(const std::string& propStr){
-            std::vector<int> inds;
-            int i=0;
-            for(const auto& c : propStr) {
-                if(c == '_') inds.push_back(i);
-                i++;
-            }
-
-            return std::string(propStr.begin()+inds.at(1)+1, propStr.begin()+inds.back());
-        }
-
-        static std::string _queueFlagBits2String(VkQueueFlagBits bits) {
-            switch(bits) {
-                case VK_QUEUE_GRAPHICS_BIT: return "VK_QUEUE_GRAPHICS_BIT";
-                case VK_QUEUE_COMPUTE_BIT: return "VK_QUEUE_COMPUTE_BIT";
-                case VK_QUEUE_TRANSFER_BIT: return "VK_QUEUE_TRANSFER_BIT";
-                case VK_QUEUE_SPARSE_BINDING_BIT: return "VK_QUEUE_SPARSE_BINDING_BIT";
-                case VK_QUEUE_PROTECTED_BIT: return "VK_QUEUE_PROTECTED_BIT";
-                case VK_QUEUE_VIDEO_DECODE_BIT_KHR: return "VK_QUEUE_VIDEO_DECODE_BIT_KHR";
-                case VK_QUEUE_VIDEO_ENCODE_BIT_KHR: return "VK_QUEUE_VIDEO_ENCODE_BIT_KHR";
-                case VK_QUEUE_OPTICAL_FLOW_BIT_NV: return "VK_QUEUE_OPTICAL_FLOW_BIT_NV";
-                case VK_QUEUE_FLAG_BITS_MAX_ENUM: return "VK_QUEUE_FLAG_BITS_MAX_ENU";
-                default: return "UNKNOWN_VK_QUEUE";
-            }
-	    }
-
     };
 }

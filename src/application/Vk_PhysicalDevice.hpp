@@ -4,6 +4,7 @@
 
 #include "../Defines.h"
 #include "Vk_PhysicalDeviceLib.hpp"
+#include "Vk_PhysicalDeviceMemory.hpp"
 #include "Vk_PhysicalDeviceQueue.hpp"
 #include "Vk_LogicalDevice.hpp"
 #include "Vk_LogicalDeviceQueue.hpp"
@@ -15,6 +16,7 @@ namespace VK5 {
         VkPhysicalDevice _physicalDevice;
         Vk_PhysicalDeviceLib::PhysicalDevicePR _pr;
         Vk_PhysicalDeviceQueue _physicalDeviceQueues;
+        Vk_PhysicalDeviceMemory _physicalDeviceMemory;
         Vk_LogicalDevice _logicalDevice;
         Vk_LogicalDeviceQueue _logicalDeviceQueue;
     public:
@@ -51,6 +53,7 @@ namespace VK5 {
         _physicalDevice(physicalDevice),
         _pr(pr),
         _physicalDeviceQueues(physicalDevice, opPriorities),
+        _physicalDeviceMemory(_physicalDevice),
         _logicalDevice(_physicalDevice, _pr, _physicalDeviceQueues),
         _logicalDeviceQueue(_logicalDevice.vk_device(), _physicalDeviceQueues)
         {}
@@ -62,6 +65,7 @@ namespace VK5 {
         _physicalDevice(other._physicalDevice),
         _pr(std::move(other._pr)),
         _physicalDeviceQueues(std::move(other._physicalDeviceQueues)),
+        _physicalDeviceMemory(std::move(other._physicalDeviceMemory)),
         _logicalDevice(std::move(other._logicalDevice)),
         _logicalDeviceQueue(std::move(other._logicalDeviceQueue))
         {
@@ -69,11 +73,13 @@ namespace VK5 {
         }
 
         Vk_PhysicalDevice& operator=(const Vk_PhysicalDevice& other) = delete;
-        Vk_PhysicalDevice& operator=(Vk_PhysicalDevice&& other) {
+        Vk_PhysicalDevice& operator=(Vk_PhysicalDevice&& other) noexcept {
+            if(this == &other) return *this;
             _index = other._index;
             _physicalDevice = std::move(other._physicalDevice);
             _pr = std::move(other._pr);
             _physicalDeviceQueues = std::move(other._physicalDeviceQueues);
+            _physicalDeviceMemory = std::move(other._physicalDeviceMemory),
             _logicalDevice = std::move(other._logicalDevice);
             _logicalDeviceQueue = std::move(other._logicalDeviceQueue);
 
@@ -86,14 +92,18 @@ namespace VK5 {
 
         VkPhysicalDevice vk_physicalDevice() const { return _physicalDevice; }
         VkDevice vk_logicalDevice() const { return _logicalDevice.vk_device(); }
+        void stateUpdate() {
+            _physicalDeviceMemory.stateUpdate();
+        }
         const Vk_PhysicalDeviceLib::PhysicalDevicePR& physicalDevicePR() const { return _pr; }
         const Vk_PhysicalDeviceQueue& physicalDeviceQueues() const { return _physicalDeviceQueues; }
+        const Vk_PhysicalDeviceMemory& physicalDeviceMemory() const { return _physicalDeviceMemory; }
         const Vk_LogicalDeviceQueue& logicalDeviceQueue() const { return _logicalDeviceQueue; }
         
-        Vk_GpuTask* enqueue(Vk_GpuOp op, std::unique_ptr<Vk_GpuTask> task){
+        Vk_GpuTaskRunner* enqueue(Vk_GpuOp op, std::unique_ptr<Vk_GpuTask> task){
             std::unique_ptr<Vk_Queue> queue = nullptr;
             while(!queue) queue = _logicalDeviceQueue.getQueue(op);
-            Vk_GpuTask* res = queue->enqueue(std::move(task));
+            Vk_GpuTaskRunner* res = queue->enqueue(std::move(task));
             _logicalDeviceQueue.addQueue(op, std::move(queue));
             return res;
         }
