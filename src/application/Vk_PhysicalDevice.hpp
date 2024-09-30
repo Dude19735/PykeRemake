@@ -8,6 +8,7 @@
 #include "Vk_PhysicalDeviceQueue.hpp"
 #include "Vk_LogicalDevice.hpp"
 #include "Vk_LogicalDeviceQueue.hpp"
+#include "./gpu_tasks/Vk_GpuTaskPool.hpp"
 
 namespace VK5 {
     class Vk_PhysicalDevice{
@@ -19,6 +20,7 @@ namespace VK5 {
         Vk_PhysicalDeviceMemory _physicalDeviceMemory;
         Vk_LogicalDevice _logicalDevice;
         Vk_LogicalDeviceQueue _logicalDeviceQueue;
+        Vk_GpuTaskPool _gpuTaskPool;
     public:
         /**
          * Enumerate all available physical devices.
@@ -55,7 +57,8 @@ namespace VK5 {
         _physicalDeviceQueues(physicalDevice, opPriorities),
         _physicalDeviceMemory(_physicalDevice),
         _logicalDevice(_physicalDevice, _pr, _physicalDeviceQueues),
-        _logicalDeviceQueue(_logicalDevice.vk_device(), _physicalDeviceQueues)
+        _logicalDeviceQueue(_logicalDevice.vk_device(), _physicalDeviceQueues),
+        _gpuTaskPool(_logicalDevice.vk_device())
         {}
 
         Vk_PhysicalDevice(const Vk_PhysicalDevice& other) = delete;
@@ -67,7 +70,8 @@ namespace VK5 {
         _physicalDeviceQueues(std::move(other._physicalDeviceQueues)),
         _physicalDeviceMemory(std::move(other._physicalDeviceMemory)),
         _logicalDevice(std::move(other._logicalDevice)),
-        _logicalDeviceQueue(std::move(other._logicalDeviceQueue))
+        _logicalDeviceQueue(std::move(other._logicalDeviceQueue)),
+        _gpuTaskPool(std::move(other._gpuTaskPool))
         {
             other._physicalDevice = nullptr;
         }
@@ -82,6 +86,7 @@ namespace VK5 {
             _physicalDeviceMemory = std::move(other._physicalDeviceMemory),
             _logicalDevice = std::move(other._logicalDevice);
             _logicalDeviceQueue = std::move(other._logicalDeviceQueue);
+            _gpuTaskPool = std::move(other._gpuTaskPool);
 
             other._physicalDevice = nullptr;
 
@@ -90,23 +95,58 @@ namespace VK5 {
 
         ~Vk_PhysicalDevice(){}
 
-        VkPhysicalDevice vk_physicalDevice() const { return _physicalDevice; }
-        VkDevice vk_logicalDevice() const { return _logicalDevice.vk_device(); }
-        void stateUpdate() {
-            _physicalDeviceMemory.stateUpdate();
-        }
+        // Const PhysicalDevice getters
         const Vk_PhysicalDeviceLib::PhysicalDevicePR& physicalDevicePR() const { return _pr; }
         const Vk_PhysicalDeviceQueue& physicalDeviceQueues() const { return _physicalDeviceQueues; }
         const Vk_PhysicalDeviceMemory& physicalDeviceMemory() const { return _physicalDeviceMemory; }
         const Vk_LogicalDeviceQueue& logicalDeviceQueue() const { return _logicalDeviceQueue; }
+        const Vk_LogicalDevice& logicalDevice() const { return _logicalDevice; }
+        const Vk_HeapSize queryPhysicalDeviceHeapSize(VkMemoryPropertyFlags flags) const { return _physicalDeviceMemory.queryMemoryHeapSize(flags); }
         
-        Vk_GpuTaskRunner* enqueue(Vk_GpuOp op, std::unique_ptr<Vk_GpuTask> task){
+        // Non const modifiers
+        /**
+         * Update the current stored state of all GPU heaps. 
+         */
+        const Vk_HeapSize queryPhysicalDeviceHeapBudget(VkMemoryPropertyFlags flags) { 
+            _physicalDeviceMemory.stateUpdate();
+            return _physicalDeviceMemory.queryGpuMemoryHeapBudget(flags); 
+        }
+
+        void stateUpdate() { _physicalDeviceMemory.stateUpdate(); }
+
+        Vk_GpuTaskRunner* enqueue(std::unique_ptr<Vk_GpuTask> task){
             std::unique_ptr<Vk_Queue> queue = nullptr;
+            auto op = task->opType();
             while(!queue) queue = _logicalDeviceQueue.getQueue(op);
             Vk_GpuTaskRunner* res = queue->enqueue(std::move(task));
             _logicalDeviceQueue.addQueue(op, std::move(queue));
             return res;
         }
+        
+        template<class TStructureType>
+        void copyCpuToGpu (const TStructureType* offsetCpuMemoryPtr, VkDeviceMemory gpuMemoryPtr, std::uint64_t copyByteSize, std::uint64_t srcByteOffset, std::uint64_t dstByteOffset){
+            _logicalDevice.copyCpuToGpu(offsetCpuMemoryPtr, gpuMemoryPtr, copyByteSize, srcByteOffset, dstByteOffset);
+        }
+
+        /**
+         * TODO:Vk_GpuTargetOp - gpuTargetOp is currently ignored
+         *    - introduce an if:
+         *       1. if Vk_GpuTarget::Auto => collect all queue families and pass them all to Vk_LogicalDeviceLib::createBuffer
+         *       2. if Vk_GpuTarget::Not-Auto => get the queue family that fits the Vk_GpuTargetOp the best and pass only that one to Vk_LogicalDeviceLib::createBuffer
+         */
+        void createAndAllocBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags,
+			VkBuffer& buffer, VkDeviceMemory& memory, VkDeviceSize size, Vk_GpuTargetOp gpuTargetOp
+		) {
+            // create the buffer (NOTE the TODO point for future adjustments)
+            std::vector<TQueueFamilyIndex> queueFamilies = UT::Ut_Std::umap_keys_to_vec(_logicalDeviceQueue.queueFamilies());
+            THeapIndex heapIndex = _physicalDeviceMemory.queryGpuMemoryHeapIndex(memoryPropertyFlags);
+            _logicalDevice.createAndAllocBuffer(usageFlags, memoryPropertyFlags, buffer, memory, size, queueFamilies, heapIndex);
+		}
+
+
+        // Vulkan getters
+        VkPhysicalDevice vk_physicalDevice() const { return _physicalDevice; }
+        VkDevice vk_logicalDevice() const { return _logicalDevice.vk_device(); }
 
         /**
          * TODO: testing: put into corresponding braces at some point

@@ -5,7 +5,7 @@
 #include <functional>
 #include <array>
 
-#include "../../Defines.h"
+#include "Vk_GpuTaskLib.hpp"
 
 namespace VK5 {
     class Vk_GpuTask;
@@ -16,9 +16,6 @@ namespace VK5 {
         virtual void _enqueueSubmit(std::unique_ptr<Vk_GpuTask> task) = 0;
     };
 
-    struct Vk_GpuTaskParams {};
-    typedef void(*TGpuTaskRecord)(VkCommandBuffer, const Vk_GpuTaskParams&);
-    typedef void(*TGpuTaskSubmit)(VkCommandBuffer, VkQueue, const Vk_GpuTaskParams&);
     typedef void(Vk_QueueBase::*TEnqueueFree)(std::unique_ptr<Vk_GpuTask>);
     typedef void(Vk_QueueBase::*TEnqueueSubmit)(std::unique_ptr<Vk_GpuTask>);
 
@@ -33,18 +30,37 @@ namespace VK5 {
 
     class Vk_Queue;
     class Vk_GpuTaskRunner {
-        Vk_GpuOp _opType;
     public:
-        Vk_GpuTaskRunner(Vk_GpuOp op) : _opType(op) {}
-        const Vk_GpuOp opType() const { return _opType; }
+        virtual const Vk_GpuOp opType() const = 0;
         virtual std::unique_ptr<Vk_GpuTask> waitResponsivelyUS(std::chrono::microseconds us) = 0;
         virtual std::unique_ptr<Vk_GpuTask> waitResponsivelyMS(std::chrono::milliseconds ms) = 0;
         virtual std::unique_ptr<Vk_GpuTask> waitResponsively() = 0;
     };
 
+    class Vk_GpuTaskModifier {
+    friend class Vk_GpuTask;
+        Vk_GpuTaskParams _params;
+        TGpuTaskRecord _recordFunction;
+        TGpuTaskSubmit _submitFunction;
+        std::function<void()> _then;
+    public:
+        Vk_GpuTaskModifier(Vk_GpuOp opType) 
+        : 
+        _params(Vk_GpuTaskParams(opType)), 
+        _recordFunction(nullptr), 
+        _submitFunction(nullptr),
+        _then({})
+        {}
+
+        Vk_GpuTaskModifier* params(Vk_GpuTaskParams&& params) { _params = std::move(params); return this; }
+        Vk_GpuTaskModifier* r(TGpuTaskRecord recordFunction) { _recordFunction = recordFunction; return this; }
+        Vk_GpuTaskModifier* s(TGpuTaskSubmit submitFunction) { _submitFunction = submitFunction; return this; }
+        Vk_GpuTaskModifier* t(const std::function<void()>& then) { _then = std::move(then); return this; }
+    };
+
     typedef Vk_GpuTaskRunner* TGpuTaskRunner;
 
-    class Vk_GpuTask : public Vk_GpuTaskRunner {
+    class Vk_GpuTask : public Vk_GpuTaskRunner, public Vk_GpuTaskModifier {
     friend class Vk_Queue;
         // static constexpr int mCount = static_cast<int>(Vk_GpuTaskStages::Count);
 
@@ -60,13 +76,11 @@ namespace VK5 {
         VkCommandBuffer _vkCommandBuffer;
         VkCommandPool _vkCommandPool;
 
-        Vk_GpuTaskParams _params;
-        TGpuTaskRecord _recordFunction;
-        TGpuTaskSubmit _submitFunction;
         Vk_GpuTaskStages _stage;
 
         std::unique_ptr<Vk_GpuTask> _self;
         Vk_QueueBase* _parentQueue;
+        TGpuTargetOpFamilies* _targetOpFamillies;
 
         // check for initialization with variadic templates
         // https://greitemann.dev/2018/09/15/variadic-expansion-in-aggregate-initialization/ 
@@ -99,17 +113,15 @@ namespace VK5 {
     public:
         Vk_GpuTask(VkDevice vkDevice, Vk_GpuOp opType) 
         : 
-        Vk_GpuTaskRunner(opType),
+        Vk_GpuTaskModifier(opType),
         _vkDevice(vkDevice),
         _vkFence(_createFence(_vkDevice)), 
         _vkCommandBuffer(nullptr), 
         _vkCommandPool(nullptr), 
-        _params({}),
-        _recordFunction(nullptr),
-        _submitFunction(nullptr),
         _stage(Vk_GpuTaskStages::Stage1_Alloc),
         _self(nullptr),
         _parentQueue(nullptr),
+        _targetOpFamillies(nullptr),
         _terminate(false), 
         _recordThread(std::thread(&Vk_GpuTask::_recordWorker, this)),
         _runningWorker(std::thread(&Vk_GpuTask::_running, this))
@@ -120,7 +132,7 @@ namespace VK5 {
         Vk_GpuTask& operator=(Vk_GpuTask&& other) = delete;
 
         virtual ~Vk_GpuTask(){
-            // std::cout << ">>>>>>>>>>>>>>>>>>> destroy task" << std::endl;
+            std::cout << ">>>>>>>>>>>>>>>>>>> destroy task" << std::endl;
             {
                 auto scopedLock = std::scoped_lock {_stage1_alloc.mutex, _stage2_record.mutex, _stage3_submit.mutex, _stage4_running.mutex, _stage5_finished.mutex };
                 _terminate = true;
@@ -136,59 +148,65 @@ namespace VK5 {
             vkDestroyFence(_vkDevice, _vkFence, nullptr);
         }
 
-        bool update(const Vk_GpuTaskParams& params, TGpuTaskRecord recordFunction, TGpuTaskSubmit submitFunction) { 
-            _params = std::move(params); 
-            if(recordFunction) _recordFunction = recordFunction;
-            if(submitFunction) _submitFunction = submitFunction;
-            return true;
-        }
+        Vk_GpuTaskModifier* mod() { return static_cast<Vk_GpuTaskModifier*>(this); }
+
+        const Vk_GpuOp opType() const { return _params.Op; }
 
         std::unique_ptr<Vk_GpuTask> waitResponsivelyUS(std::chrono::microseconds us) {
-            // wait until signaled
-            // std::cout << "waiting for task to finish..." << std::endl;
             auto lock = std::unique_lock<std::mutex>(_stage5_finished.mutex);
+            /**
+             * NOTE: when waitResponsivelyUS is called, the condition_variable's condition is checked once. If
+             * it is already true (if either _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate;) it will pass without waiting.
+             * Vk_Queue must ensure that _stage != Vk_GpuTaskStages::Stage5_Finished BEFORE waitResponsivelyUS can be called inside the
+             * Vk_Queue::enqueue method!
+             */
             _stage5_finished.condition.wait_for(lock, us, [this](){ return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; });
-
-            // std::cout << "   ... task finished" << std::endl;
             return std::move(_self);
         }
 
         std::unique_ptr<Vk_GpuTask> waitResponsivelyMS(std::chrono::milliseconds ms) {
-            // wait until signaled
-            // std::cout << "waiting for task to finish..." << std::endl;
             auto lock = std::unique_lock<std::mutex>(_stage5_finished.mutex);
+            /**
+             * NOTE: when waitResponsivelyUS is called, the condition_variable's condition is checked once. If
+             * it is already true (if either _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate;) it will pass without waiting.
+             * Vk_Queue must ensure that _stage != Vk_GpuTaskStages::Stage5_Finished BEFORE waitResponsivelyMS can be called inside the
+             * Vk_Queue::enqueue method!
+             */
             _stage5_finished.condition.wait_for(lock, ms, [this](){  return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; });
-
-            // std::cout << "   ... task finished" << std::endl;
             return std::move(_self);
         }
 
         std::unique_ptr<Vk_GpuTask> waitResponsively() {
-            // wait until signaled
-            // std::cout << "waiting for task to finish..." << std::endl;
             auto lock = std::unique_lock<std::mutex>(_stage5_finished.mutex);
+            /**
+             * NOTE: when waitResponsivelyUS is called, the condition_variable's condition is checked once. If
+             * it is already true (if either _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate;) it will pass without waiting.
+             * Vk_Queue must ensure that _stage != Vk_GpuTaskStages::Stage5_Finished BEFORE waitResponsively can be called inside the
+             * Vk_Queue::enqueue method!
+             */
             _stage5_finished.condition.wait(lock, [this](){ return _stage == Vk_GpuTaskStages::Stage5_Finished || _terminate; });
-
-            std::cout << "   ... task finished" << std::endl;
             return std::move(_self);
         }
 
     private:
+        void resetTask() {
+            _stage = Vk_GpuTaskStages::Stage1_Alloc;
+        }
+
         // stage 1 and 5 (serialized for VkCommandPool)
-        void passAlloc(std::unique_ptr<Vk_GpuTask> self, VkCommandBuffer commandBuffer, Vk_QueueBase* pParentQueue){
+        void passAlloc(std::unique_ptr<Vk_GpuTask> self, VkCommandBuffer commandBuffer, Vk_QueueBase* pParentQueue, TGpuTargetOpFamilies* targetOpFamilies){
             if(_vkCommandBuffer != nullptr) UT::Ut_Logger::RuntimeError(typeid(this), "CommandBuffer is not nullptr! Alloc before free => this is a bug!");
             _vkCommandBuffer = commandBuffer;
             _self = std::move(self);
             _parentQueue = pParentQueue;
+            _targetOpFamillies = targetOpFamilies;
 
             // goto next
             _stage = Vk_GpuTaskStages::Stage2_Record;
             _stage2_record.condition.notify_one();
-            // std::cout << "T1." << std::endl;
         }
 
         void _recordWorker(){
-            // std::cout << ">>>>>>>>>>>>>>>>>>> Start record worker" << std::endl;
             // run endlessly... we should techincally get one task at the time
             while(true){
                 {
@@ -197,13 +215,8 @@ namespace VK5 {
                         return _stage == Vk_GpuTaskStages::Stage2_Record || _terminate;
                     });
 
-                    if(_terminate){
-                        // std::cout << ">>>>>>>>>>>>>>>>>>> Stop record worker" << std::endl;
-                        return;
-                    }
-
-                    // std::cout << "T2." << std::endl;
-                    if(_recordFunction) _recordFunction(_vkCommandBuffer, _params);
+                    if(_terminate) return;
+                    if(_recordFunction) _recordFunction(_vkCommandBuffer, _targetOpFamillies, _params);
 
                     // goto next: back to Vk_Queue because this one has to be in sync
                     _stage = Vk_GpuTaskStages::Stage3_Submit;
@@ -218,8 +231,7 @@ namespace VK5 {
 
         void submit(std::unique_ptr<Vk_GpuTask> self, VkQueue vkQueue) {
             // submit task, run from Vk_Queue
-            // std::cout << "T3." << std::endl;
-            if(_submitFunction) _submitFunction(_vkCommandBuffer, vkQueue, _params);
+            if(_submitFunction) _submitFunction(_vkCommandBuffer, vkQueue, _vkFence, _params);
             _self = std::move(self);
 
             // goto next
@@ -228,7 +240,6 @@ namespace VK5 {
         }
 
         void _running() {
-            // std::cout << ">>>>>>>>>>>>>>>>>>> Start task runner" << std::endl;
             while(true) {
                 {
                     auto lock = std::unique_lock<std::mutex>(_stage4_running.mutex);
@@ -236,27 +247,24 @@ namespace VK5 {
                         return _stage == Vk_GpuTaskStages::Stage4_Running || _terminate;
                     });
 
-                    if(_terminate){
-                        // std::cout << ">>>>>>>>>>>>>>>>>>> Stop task runner" << std::endl;
-                        return;
-                    }
+                    if(_terminate) return;
                     
-                    // std::cout << "T4." << std::endl;
                     VkResult res = vkWaitForFences(_vkDevice, 1, &_vkFence, VK_TRUE, GLOBAL_FENCE_TIMEOUT);
                     if(res == VK_TIMEOUT) UT::Ut_Logger::RuntimeError(typeid(this), "Signal timeout");
                     else if (res != VK_SUCCESS) UT::Ut_Logger::RuntimeError(typeid(this), "Signal catastrophic result!");
 
-                    // std::cout << "T4.." << std::endl;
                     _parentQueue->_enqueueFree(_vkCommandBuffer);
+                    if(_then) _then();
                     _vkCommandBuffer = nullptr;
                     _parentQueue = nullptr;
+                    _targetOpFamillies = nullptr;
 
                     _stage = Vk_GpuTaskStages::Stage5_Finished;
                 }
                 /**
                  * NOTE: make sure all locks are released before calling notify
                  */
-                _stage5_finished.condition.notify_all(); // everyone who is waiting
+                _stage5_finished.condition.notify_one(); // everyone who is waiting
             }
         }
 

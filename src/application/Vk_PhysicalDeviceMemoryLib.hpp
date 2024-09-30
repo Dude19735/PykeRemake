@@ -8,9 +8,13 @@
 #include "../external/tabulate/single_include/tabulate/tabulate.hpp"
 
 namespace VK5 {
+    typedef uint32_t THeapIndex;
+
     struct Vk_GpuMemoryHeapStr {
-        std::uint32_t heapIndex;
+        THeapIndex heapIndex;
         std::string str;
+        std::set<VkMemoryPropertyFlagBits> flags;
+        VkMemoryPropertyFlags coalescedFlags;
     };
 
     struct Vk_HeapSize {
@@ -34,11 +38,12 @@ namespace VK5 {
         Vk_HeapSize size;
         Vk_HeapSize budget;
         Vk_HeapSize usage;
-        std::uint32_t heapIndex;
-        std::vector<Vk_GpuMemoryHeapStr> heapStr;
+        THeapIndex heapIndex;
+        std::vector<Vk_GpuMemoryHeapStr> heapFlags;
     };
 
-    typedef std::vector<Vk_GpuMemoryHeapState> TGpuMemoryHeapState;
+    typedef Vk_GpuMemoryHeapState TGpuMemoryHeapState;
+    typedef std::vector<TGpuMemoryHeapState> TGpuMemoryHeapsState;
 
     class Vk_PhysicalDeviceMemoryLib {
         /**
@@ -58,8 +63,35 @@ namespace VK5 {
         };
 
     public:
-        static TGpuMemoryHeapState initGpuMemoryHeapState(VkPhysicalDevice physicalDevice) {
-            TGpuMemoryHeapState gpuMemoryHeap;
+        static Vk_HeapSize queryGpuMemoryHeapSize(const TGpuMemoryHeapsState& memoryHeapsState, VkMemoryPropertyFlags memoryPropertyFlags) {
+            for(const auto& hs : memoryHeapsState){
+                for(const auto& hsf : hs.heapFlags)
+                if(hsf.coalescedFlags == memoryPropertyFlags) return hs.size;
+            }
+            UT::Ut_Logger::RuntimeError(typeid(NoneObj), "Unavailable memoryPropertyFlags [{0}] requested! Use [Vk_Device].physicalDevicesMemoryToStream(std::cout) to check all available memory configurations.", Vk_Lib::Vk_VkMemoryPropertyFlagsSet2Str(_memoryPropertiesSplitter(memoryPropertyFlags)));
+            return {};
+        }
+
+        static THeapIndex queryGpuMemoryHeapIndex(const TGpuMemoryHeapsState& memoryHeapsState, VkMemoryPropertyFlags memoryPropertyFlags) {
+            for(const auto& hs : memoryHeapsState){
+                for(const auto& hsf : hs.heapFlags)
+                if(hsf.coalescedFlags == memoryPropertyFlags) return hs.heapIndex;
+            }
+            UT::Ut_Logger::RuntimeError(typeid(NoneObj), "Unavailable memoryPropertyFlags [{0}] requested! Use [Vk_Device].physicalDevicesMemoryToStream(std::cout) to check all available memory configurations.", Vk_Lib::Vk_VkMemoryPropertyFlagsSet2Str(_memoryPropertiesSplitter(memoryPropertyFlags)));
+            return 0;
+        }
+
+        static Vk_HeapSize queryGpuMemoryHeapBudget(const TGpuMemoryHeapsState& memoryHeapsState, VkMemoryPropertyFlags memoryPropertyFlags) {
+            for(const auto& hs : memoryHeapsState){
+                for(const auto& hsf : hs.heapFlags)
+                if(hsf.coalescedFlags == memoryPropertyFlags) return hs.budget;
+            }
+            UT::Ut_Logger::RuntimeError(typeid(NoneObj), "Unavailable memoryPropertyFlags [{0}] requested! Use [Vk_Device].physicalDevicesMemoryToStream(std::cout) to check all available memory configurations.", Vk_Lib::Vk_VkMemoryPropertyFlagsSet2Str(_memoryPropertiesSplitter(memoryPropertyFlags)));
+            return {};
+        }
+
+        static TGpuMemoryHeapsState initGpuMemoryHeapsState(VkPhysicalDevice physicalDevice) {
+            TGpuMemoryHeapsState gpuMemoryHeap;
             VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
             vkGetPhysicalDeviceMemoryProperties(physicalDevice, &deviceMemoryProperties);
 
@@ -67,9 +99,12 @@ namespace VK5 {
             for (uint32_t i = 0; i < deviceMemoryProperties.memoryTypeCount; ++i) {
                 auto h = deviceMemoryProperties.memoryTypes[i];
                 if(!memoryHeapStr.contains(h.heapIndex)) memoryHeapStr.insert({h.heapIndex, std::vector<Vk_GpuMemoryHeapStr>()});
+                auto flagSet = _memoryPropertiesSplitter(h.propertyFlags);
                 memoryHeapStr.at(h.heapIndex).push_back({
                     .heapIndex = h.heapIndex,
-                    .str = Vk_Lib::Vk_VkMemoryPropertyFlagsSet2Str(_memoryPropertiesSplitter(h.propertyFlags))
+                    .str = Vk_Lib::Vk_VkMemoryPropertyFlagsSet2Str(flagSet),
+                    .flags = flagSet,
+                    .coalescedFlags = h.propertyFlags
                 });
             }
 
@@ -80,13 +115,13 @@ namespace VK5 {
                     .budget=Vk_HeapSize::get(0),
                     .usage=Vk_HeapSize::get(0),
                     .heapIndex = static_cast<uint32_t>(i),
-                    .heapStr = memoryHeapStr.at(i)
+                    .heapFlags = memoryHeapStr.at(i)
                 });
             }
             return gpuMemoryHeap;
 		}
 
-        static void updateGpuHeapUsageStats(VkPhysicalDevice physicalDevice, TGpuMemoryHeapState& gpuMemoryHeapState) {
+        static void updateGpuHeapsUsageStats(VkPhysicalDevice physicalDevice, TGpuMemoryHeapsState& gpuMemoryHeapState) {
 
 			VkPhysicalDeviceMemoryProperties2 props;
 			props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
@@ -108,9 +143,12 @@ namespace VK5 {
         static std::set<VkMemoryPropertyFlagBits> _memoryPropertiesSplitter(VkMemoryPropertyFlags properties) {
             std::set<VkMemoryPropertyFlagBits> propertyBits;
 
+            if(properties == VK_MEMORY_PROPERTY_HOST_LOCAL_BIT) propertyBits.insert(static_cast<VkMemoryPropertyFlagBits>(VK_MEMORY_PROPERTY_HOST_LOCAL_BIT));
+
             for(const auto& p : _allMemoryPropertyBits){
                 if(properties & p) propertyBits.insert(p);
             }
+            
             return propertyBits;
         }
     };

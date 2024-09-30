@@ -43,5 +43,12 @@ namespace UT {
 			std::for_each(set.begin(), set.end(), [&](const T& elem) { ss << toStr(elem); });
 			return ss.str();
 		}
+
+		template<class TKey, class TValue>
+		static std::vector<TKey> umap_keys_to_vec(const std::unordered_map<TKey, TValue>& map){
+			std::vector<TKey> keys;
+			std::transform(map.begin(), map.end(), keys.begin(), [](const auto& pp) { return pp.first; });
+			return keys;
+		}
     };
 }

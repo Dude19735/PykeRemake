@@ -7,19 +7,19 @@ namespace VK5 {
     class Vk_PhysicalDeviceMemory {
     private:
         VkPhysicalDevice _physicalDevice;
-        TGpuMemoryHeapState _gpuMemoryHeapState;
+        TGpuMemoryHeapsState _gpuMemoryHeapsState;
     public:
         Vk_PhysicalDeviceMemory(VkPhysicalDevice physicalDevice)
         :
         _physicalDevice(physicalDevice),
-        _gpuMemoryHeapState(Vk_PhysicalDeviceMemoryLib::initGpuMemoryHeapState(_physicalDevice))
+        _gpuMemoryHeapsState(Vk_PhysicalDeviceMemoryLib::initGpuMemoryHeapsState(_physicalDevice))
         {}
 
         Vk_PhysicalDeviceMemory(const Vk_PhysicalDeviceMemory& other) = delete;
         Vk_PhysicalDeviceMemory(Vk_PhysicalDeviceMemory&& other)
         :
         _physicalDevice(other._physicalDevice),
-        _gpuMemoryHeapState(std::move(other._gpuMemoryHeapState))
+        _gpuMemoryHeapsState(std::move(other._gpuMemoryHeapsState))
         {
             other._physicalDevice = nullptr;
         }
@@ -27,14 +27,18 @@ namespace VK5 {
         Vk_PhysicalDeviceMemory& operator=(Vk_PhysicalDeviceMemory&& other) noexcept {
             if(this == &other) return *this;
             _physicalDevice = other._physicalDevice;
-            _gpuMemoryHeapState = std::move(other._gpuMemoryHeapState);
+            _gpuMemoryHeapsState = std::move(other._gpuMemoryHeapsState);
             other._physicalDevice = nullptr;
             return *this;
         }
 
-        void stateUpdate() {
-            Vk_PhysicalDeviceMemoryLib::updateGpuHeapUsageStats(_physicalDevice, _gpuMemoryHeapState);
-        }
-        const TGpuMemoryHeapState& state() const { return _gpuMemoryHeapState; }
+        // non-const modifiers
+        void stateUpdate() { Vk_PhysicalDeviceMemoryLib::updateGpuHeapsUsageStats(_physicalDevice, _gpuMemoryHeapsState); }
+
+        // const getters
+        const TGpuMemoryHeapsState& state() const { return _gpuMemoryHeapsState; }
+        const Vk_HeapSize queryMemoryHeapSize(VkMemoryPropertyFlags memoryPropertyFlags) const { return Vk_PhysicalDeviceMemoryLib::queryGpuMemoryHeapSize(_gpuMemoryHeapsState, memoryPropertyFlags); }
+        const THeapIndex queryGpuMemoryHeapIndex(VkMemoryPropertyFlags memoryPropertyFlags) const { return Vk_PhysicalDeviceMemoryLib::queryGpuMemoryHeapIndex(_gpuMemoryHeapsState, memoryPropertyFlags); }
+        const Vk_HeapSize queryGpuMemoryHeapBudget(VkMemoryPropertyFlags memoryPropertyFlags) const { return Vk_PhysicalDeviceMemoryLib::queryGpuMemoryHeapBudget(_gpuMemoryHeapsState, memoryPropertyFlags); }
     };
 }

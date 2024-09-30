@@ -10,13 +10,6 @@ namespace VK5 {
     class Vk_LogicalDeviceQueue {
     private:
         VkDevice _vkDevice;
-        // this one is an array becuase it has to be allocated at runtime and really has 
-        // to stay where it is afterwards (std::vector doesn't necessarily do that)
-        // _logicalQueueFamilies is NOT indexed using the queue family index. It only contains the queue families
-        // that can actually be used, given the Vk_GpuOp priorities. For example, if queue families 0 and 2 are used
-        // then family 0 is at index 0 but family 2 is at index 1. If _logicalQueueFamilies is then indexed using the family indices
-        //  => garbage-memory-out-of-bounds!
-        std::unique_ptr<TLogicalQueueFamilies> _logicalQueueFamilies;
 
         // Map that maps all DeviceQueues queues capable of performing Vk_OpX to that operation
         // An access consists of 
@@ -32,21 +25,29 @@ namespace VK5 {
         // }
         TLogicalQueuesOpFamilyMap _queuesOpMap;
 
+        // this one is an array becuase it has to be allocated at runtime and really has 
+        // to stay where it is afterwards (std::vector doesn't necessarily do that)
+        // _logicalQueueFamilies is NOT indexed using the queue family index. It only contains the queue families
+        // that can actually be used, given the Vk_GpuOp priorities. For example, if queue families 0 and 2 are used
+        // then family 0 is at index 0 but family 2 is at index 1. If _logicalQueueFamilies is then indexed using the family indices
+        //  => garbage-memory-out-of-bounds!
+        std::unique_ptr<TLogicalQueueFamilies> _logicalQueueFamilies;
+
         std::mutex _mutex;
     public:
         Vk_LogicalDeviceQueue(VkDevice device, const Vk_PhysicalDeviceQueue& physicalDeviceQueue)
         :
         _vkDevice(device),
-        _logicalQueueFamilies(std::move(_createLogicalQueues(_vkDevice, physicalDeviceQueue.queueFamilyMap()))),
-        _queuesOpMap(Vk_LogicalDeviceQueueLib::createLogicalQueuesOpMap(physicalDeviceQueue.queueFamilyMap(), physicalDeviceQueue.queueFamilies()))
+        _queuesOpMap(Vk_LogicalDeviceQueueLib::createLogicalQueuesOpMap(physicalDeviceQueue.queueFamilyMap(), physicalDeviceQueue.queueFamilies())),
+        _logicalQueueFamilies(std::move(_createLogicalQueues(_vkDevice, physicalDeviceQueue.queueFamilyMap(), _queuesOpMap)))
         {}
 
         Vk_LogicalDeviceQueue(Vk_LogicalDeviceQueue& other) = delete;
         Vk_LogicalDeviceQueue(Vk_LogicalDeviceQueue&& other) noexcept
         :
         _vkDevice(other._vkDevice),
-        _logicalQueueFamilies(std::move(other._logicalQueueFamilies)),
-        _queuesOpMap(std::move(other._queuesOpMap))
+        _queuesOpMap(std::move(other._queuesOpMap)),
+        _logicalQueueFamilies(std::move(other._logicalQueueFamilies))
         {
             other._vkDevice = nullptr;
         }
@@ -95,7 +96,12 @@ namespace VK5 {
         }
 
     private:
-        std::unique_ptr<TLogicalQueueFamilies> _createLogicalQueues(VkDevice device, const TDeviceQueueFamilyMap& queueFamilyMap){
+        std::unique_ptr<TLogicalQueueFamilies> _createLogicalQueues(VkDevice device, const TDeviceQueueFamilyMap& queueFamilyMap, TLogicalQueuesOpFamilyMap queuesOpMap){
+            TGpuTargetOpFamilies queueTargetOp;
+            for(const auto& qop : queuesOpMap){
+                queueTargetOp.insert({static_cast<Vk_GpuTargetOp>(qop.first), qop.second});
+            }
+
             // get the queues for all queue families and organize them in a stack
             std::map<TQueueFamilyIndex, std::vector<TQueueIndex>> map;
             for(const auto& family : queueFamilyMap) {
@@ -113,7 +119,7 @@ namespace VK5 {
                 if(!logicalQueues->contains(familyIndex)) logicalQueues->insert({familyIndex, {}});
                 auto& ll = logicalQueues->at(familyIndex);
                 for(const TQueueIndex& queueIndex : family.second)
-                    ll.push_back(std::make_unique<Vk_Queue>(device, family.first, queueIndex));
+                    ll.push_back(std::make_unique<Vk_Queue>(device, family.first, queueIndex, queueTargetOp));
             }
 
             return logicalQueues;

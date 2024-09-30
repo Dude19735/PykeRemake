@@ -15,7 +15,7 @@
 // #pragma warning(pop)
 
 #include "../src/Defines.h"
-#include "../src/objects/Vk_Structures.hpp"
+#include "../src/buffers/Vk_Structures.hpp"
 
 namespace UT {
 	namespace TestUtilities {
@@ -62,8 +62,8 @@ namespace UT {
 
 		template<class ..._Types>
 		std::string formatTimeOutput(const std::string& comment, const _Types&... _args) {
-			std::string separator = VK5::GlobalCasters::castHighlightCyan("=================================================================================");
-			std::string content = VK5::GlobalCasters::castCyan(std::format(comment, _args...));
+			std::string separator = UT::GlobalCasters::castHighlightCyan("=================================================================================");
+			std::string content = UT::GlobalCasters::castCyan(std::format(comment, _args...));
 			std::stringstream buf("");
 			buf << separator << std::endl << content << std::endl << separator << std::endl;
 			return buf.str();

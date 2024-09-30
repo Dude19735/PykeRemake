@@ -9,8 +9,8 @@
 #include "./utils/Ut_Utils.hpp"
 #include "./cameras/Vk_Camera.hpp"
 #include "./cameras/I_Layout.hpp"
-#include "./tasks/Vk_Actions.hpp"
-#include "./application/Vk_Device.hpp"
+#include "./cpu_actions/Vk_Actions.hpp"
+#include "./application/Vk_Device.h"
 
 namespace VK5 {
     class Vk_Viewer{

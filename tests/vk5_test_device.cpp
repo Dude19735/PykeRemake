@@ -108,7 +108,7 @@ BOOST_AUTO_TEST_CASE(TestDeviceInit1, *all_tests)
     ff.close();
 }
 
-BOOST_AUTO_TEST_CASE(TestDeviceQueuePrio, *all_tests)
+BOOST_AUTO_TEST_CASE(TestDeviceQueuePrio, *new_test)
 {
     {
         std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Compute, VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer};
@@ -132,8 +132,15 @@ BOOST_AUTO_TEST_CASE(TestDeviceQueuePrio, *all_tests)
                     std::cout << "===========================================================" << std::endl;
                     std::cout << "Queue for " << VK5::Vk_GpuOp2String(VK5::Vk_GpuOp::Graphics) << ": " << queue->toString() << std::endl;
                     std::cout << "===========================================================" << std::endl;
-                    device.logicalDevicesQueuesToStream(std::cout);
+                    // device.logicalDevicesQueuesToStream(std::cout);
+                    std::string bla = queue->toString();
+                    task->mod()->params(VK5::Vk_GpuTaskParams(VK5::Vk_GpuOp::Graphics))
+                               ->r(nullptr)
+                               ->s(nullptr)
+                               ->t([=](){ std::cout << "     ...task finished..." << bla << std::endl; });
+
                     task = queue->enqueue(std::move(task))->waitResponsively();
+                    std::cout << "running " << bla << std::endl;
 
                     buffer.emplace_back(std::move(queue));
                 }
@@ -150,8 +157,8 @@ BOOST_AUTO_TEST_CASE(TestDeviceQueuePrio, *all_tests)
                 task = buffer.front()->enqueue(std::move(task))->waitResponsively();
                 dev.addQueue(VK5::Vk_GpuOp::Graphics, std::move(buffer.front()));
                 buffer.pop_front();
-                std::cout << "===========================================================" << std::endl;
-                device.logicalDevicesQueuesToStream(std::cout);
+                // std::cout << "===========================================================" << std::endl;
+                // device.logicalDevicesQueuesToStream(std::cout);
             }
         }
     }
@@ -187,7 +194,7 @@ BOOST_AUTO_TEST_CASE(TestDeviceTaskRunner, *all_tests)
             std::list<VK5::TGpuTaskRunner> running;
 
             while(!taskList.empty()) {
-                running.emplace_back(dev.enqueue(VK5::Vk_GpuOp::Graphics, std::move(taskList.front())));
+                running.emplace_back(dev.enqueue(std::move(taskList.front())));
                 taskList.pop_front();
                 std::cout << back;
                 device.logicalDevicesQueuesToStream(std::cout);
@@ -202,7 +209,7 @@ BOOST_AUTO_TEST_CASE(TestDeviceTaskRunner, *all_tests)
     }
 }
 
-BOOST_AUTO_TEST_CASE(TestDeviceMemory, *new_test)
+BOOST_AUTO_TEST_CASE(TestDeviceMemory, *all_tests)
 {
     {
         std::vector<VK5::Vk_GpuOp> priorities = {VK5::Vk_GpuOp::Compute, VK5::Vk_GpuOp::Graphics, VK5::Vk_GpuOp::Transfer};

@@ -142,9 +142,9 @@ namespace VK5 {
 					std::string usage_gb = Vk_Lib::rightCrop(item.usage.Gb) + " / " + Vk_Lib::rightCrop(item.budget.Gb) + "[GB]";
 
 					std::stringstream props;
-					size_t s = item.heapStr.size();
+					size_t s = item.heapFlags.size();
 					size_t counter = 0;
-					for (auto conf : item.heapStr) {
+					for (auto conf : item.heapFlags) {
 						props << conf.str;
 						if(counter++ < s) props << "\n";
 					}

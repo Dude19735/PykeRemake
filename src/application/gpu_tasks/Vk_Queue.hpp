@@ -4,6 +4,8 @@
 #include <queue>
 #include <set>
 #include <condition_variable>
+#include <unordered_map>
+#include <vector>
 
 #include "../../Defines.h"
 #include "../../Vk_CI.hpp"
@@ -18,6 +20,7 @@ namespace VK5 {
         TQueueIndex _queueIndex;
         VkQueue _vkQueue;
         VkCommandPool _vkCommandPool;
+        TGpuTargetOpFamilies _queueFamilyForTargetOp;
 
         bool _terminate;
 
@@ -45,11 +48,11 @@ namespace VK5 {
 
     public:
         // regular constructor
-        Vk_Queue(VkDevice vkDevice, uint32_t familyIndex, uint32_t queueIndex) 
+        Vk_Queue(VkDevice vkDevice, uint32_t familyIndex, uint32_t queueIndex, std::unordered_map<Vk_GpuTargetOp, std::vector<TQueueFamilyIndex>> queueFamilyForTargetOp)
         : 
         _vkDevice(vkDevice), _familyIndex(familyIndex), _queueIndex(queueIndex),
         _vkQueue(_getDeviceQueue(_vkDevice, _familyIndex, _queueIndex)), _vkCommandPool(_createCommandPool(_vkDevice, _familyIndex)),
-        _terminate(false), 
+        _queueFamilyForTargetOp(queueFamilyForTargetOp), _terminate(false), 
         _allocFreeThread(std::thread(&Vk_Queue::_allocFreeLoop, this)),
         _submitThread(std::thread(&Vk_Queue::_submitLoop, this))
         {}
@@ -72,8 +75,6 @@ namespace VK5 {
             _submitCondition.notify_one();
             if(_submitThread.joinable()) _submitThread.join();
 
-            // std::cout << "join " << toString() << std::endl;
-
             if(_vkQueue != nullptr) vkQueueWaitIdle(_vkQueue);
             while(!_usedCommandBuffers.empty()){
                 VkCommandBuffer b = _usedCommandBuffers.front();
@@ -93,9 +94,19 @@ namespace VK5 {
         }
 
         TGpuTaskRunner enqueue(std::unique_ptr<Vk_GpuTask> task){
-            TGpuTaskRunner res;
+            TGpuTaskRunner res = nullptr;
             {
 				std::unique_lock<std::mutex> lock(_allocFreeMutex);
+                /**
+                 * NOTE: This resetTask is important: it ensures that a task is always in Stage1 synchronously
+                 * with the dispatching thread. This ensures that the expression
+                 *    task = queue->enqueue(std::move(task))->waitResponsively();
+                 * works properly. Without this, waitResponsively (and friends) will probably wait only the first time a task is
+                 * enqueued. Afterwards, task->_stage == Stage5 before the next GpuTask::passAlloc runs and sets _stage=Stage2.
+                 * NOTE: each GpuTask is >moved< into a Queue. From the outside, the GpuTask is replaced with a GpuTaskRunner ptr
+                 * until it is returned by a waitResponsively() (and friends). GpuTaskRunner ptrs can't modify a task.
+                 */
+                task->resetTask();
                 res = reinterpret_cast<TGpuTaskRunner>(task.get());
                 _allocTasks.push(std::move(task));
 			}
@@ -109,11 +120,9 @@ namespace VK5 {
 				std::unique_lock<std::mutex> lock(_allocFreeMutex);
                 _usedCommandBuffers.push(commandBuffer);
 			}
-			_allocFreeCondition.notify_one();
         }
 
         void _allocFreeLoop() {
-            // std::cout << "############################### Start passAlloc loop for " << toString() << std::endl;
             std::unique_ptr<Vk_GpuTask> cTask = nullptr;
             VkCommandBuffer vkCommandBuffer;
             while(true){
@@ -126,21 +135,17 @@ namespace VK5 {
                     if(_terminate){
                         std::queue<std::unique_ptr<Vk_GpuTask>> empty;
                         std::swap(_allocTasks, empty);
-                        // std::cout << "############################### Stop passAlloc loop for " << toString() << std::endl;
                         return;
                     }
 
                     // first check, if we have some task that is finished and deposited it's command buffer
                     // back here.
                     if(_allocTasks.size() > 0){
-                        // std::cout << _usedCommandBuffers.size() << std::endl;            
                         if(!_usedCommandBuffers.empty()){
                             vkCommandBuffer = _usedCommandBuffers.front();
                             _usedCommandBuffers.pop();
-                            // std::cout << " Q1n" << std::endl;
                         }
                         else {
-                            // std::cout << " Q1r" << std::endl;
                             // if we don't have a spare command buffer, get one from the pool
                             // technically, the cost should ammortize, but maybe it doesn't, so reuse rather than get new ones
                             auto createInfo = Vk_CI::VkCommandBufferAllocateInfo_W(1, _vkCommandPool).data;
@@ -148,10 +153,9 @@ namespace VK5 {
                         }
                         cTask = std::move(_allocTasks.front());
                         _allocTasks.pop();
-                        // std::cout << " Q1s" << std::endl;
                     }
                 }
-                if(cTask) cTask->passAlloc(std::move(cTask), vkCommandBuffer, this);
+                if(cTask) cTask->passAlloc(std::move(cTask), vkCommandBuffer, this, &_queueFamilyForTargetOp);
             }
         }
 
@@ -164,7 +168,6 @@ namespace VK5 {
         }
 
         void _submitLoop() {
-            // std::cout << "############################### Start submit loop for " << toString() << std::endl;
             std::unique_ptr<Vk_GpuTask> cTask = nullptr;
             while(true){
                 {
@@ -174,7 +177,6 @@ namespace VK5 {
                     });
                     
                     if(_terminate){
-                        // std::cout << "############################### Stop submit loop for " << toString() << std::endl;
                         std::queue<std::unique_ptr<Vk_GpuTask>> empty;
                         std::swap(_submitTasks, empty);
                         return;
@@ -182,7 +184,6 @@ namespace VK5 {
                     
                     cTask = std::move(_submitTasks.front());
                     _submitTasks.pop();
-                    // std::cout << " Q2." << std::endl;
                 }
                 if(cTask) cTask->submit(std::move(cTask), _vkQueue);
             }

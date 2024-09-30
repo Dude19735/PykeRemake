@@ -4,6 +4,14 @@
 #include "Defines.h"
 
 namespace VK5 {
+	struct OutOfDeviceMemoryException : public std::exception
+	{
+		const char* what() const throw ()
+		{
+			return "GPU Device out of memory";
+		}
+	};
+	
     class Vk_Lib {
     public:
 		static std::uint64_t bestPowerOfTwo(std::uint64_t size) {
@@ -137,7 +145,7 @@ namespace VK5 {
 
 		static std::string Vk_VkMemoryPropertyFlags2String(const VkMemoryPropertyFlags flags) {
 			switch (flags) {
-				case 0: return "VK_MEMORY_PROPERTY_HOST_LOCAL/SHARED_BIT";
+				case 0: return "VK_MEMORY_PROPERTY_HOST_LOCAL_BIT"; // this one is custom, not Vulkan API
 				case VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: return "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT";
 				case VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT: return "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT";
 				case VK_MEMORY_PROPERTY_HOST_COHERENT_BIT: return "VK_MEMORY_PROPERTY_HOST_COHERENT_BIT";
@@ -167,8 +175,6 @@ namespace VK5 {
         }
 
 		static std::string Vk_VkMemoryPropertyFlagsSet2Str(const std::set<VkMemoryPropertyFlagBits>& propBits){
-			if(propBits.empty()) return Vk_CropVkMemoryPropertyFlagsStr(Vk_VkMemoryPropertyFlags2String(0));
-			
             std::stringstream res;
             size_t s = propBits.size();
             int i=0; 

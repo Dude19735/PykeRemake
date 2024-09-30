@@ -115,5 +115,53 @@ namespace VK5 {
             })
             {}
         };
+
+        struct VkCommandBufferBeginInfo_W {
+            VkCommandBufferBeginInfo data;
+            VkCommandBufferBeginInfo_W(VkCommandBufferUsageFlags flag)
+            : 
+            data({
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                .pNext = nullptr,
+                .flags = flag,
+                .pInheritanceInfo = nullptr
+            })
+            {}
+        };
+
+        /**
+         * TODO:Vk_GpuTargetOp - remove implicit switch to CONCURRENT
+         */
+        struct VkBufferCreateInfo_W {
+            std::vector<uint32_t> vkQueueFamilyIndices;
+            VkBufferCreateInfo data;
+            VkBufferCreateInfo_W(VkBufferUsageFlags usageFlags, VkDeviceSize size, const std::vector<uint32_t>& queueFamilyIndices)
+            :
+            vkQueueFamilyIndices(queueFamilyIndices),
+            data({
+                .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0, /* TODO: if we enable sparse binding and other stuff, this one needs revision */
+                .size = size,
+                .usage = usageFlags,
+                .sharingMode = vkQueueFamilyIndices.size() == 1 ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT,
+                .queueFamilyIndexCount = static_cast<uint32_t>(vkQueueFamilyIndices.size()),
+                .pQueueFamilyIndices = vkQueueFamilyIndices.data()
+            })
+            {}
+        };
+
+        struct VkMemoryAllocateInfo_W {
+            VkMemoryAllocateInfo data;
+            VkMemoryAllocateInfo_W(VkDeviceSize allocationSize, uint32_t memoryTypeIndex)
+            :
+            data({
+                .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+                .pNext = nullptr,
+                .allocationSize = allocationSize,
+                .memoryTypeIndex = memoryTypeIndex
+            })
+            {}
+        };
     };
 }

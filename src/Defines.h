@@ -2,6 +2,14 @@
 // #define PYVK
 // #define _DEBUG
 
+/**
+ * Planed extensions:
+ * ==================
+ * TODO:Vk_GpuTargetOp => define target operation for each Vk_DataBuffer and remove VK_SHARING_MODE_CONCURRENT
+ *    - needs additional queue isolation in Vk_LogicalDeviceQueue => isolate Compute and Graphics queue families to Compute and Graphics Vk_GpuOp
+ *    - 
+ */
+
 // some generic way to distinguish operating systems
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
    //define something for Windows (32-bit and 64-bit, this part is common)
@@ -97,6 +105,8 @@ namespace VK5 {
 	//static VkSampleCountFlagBits offscreen_samples = VK_SAMPLE_COUNT_1_BIT;
 
     constexpr uint64_t GLOBAL_FENCE_TIMEOUT = static_cast<uint64_t>(std::chrono::nanoseconds(1000000).count());
+    // we need something to use for host local memory
+    static constexpr VkFlags VK_MEMORY_PROPERTY_HOST_LOCAL_BIT = 0;
 
 	typedef float point_type;
 	typedef std::uint32_t index_type;
@@ -152,6 +162,13 @@ namespace VK5 {
         // VideoDecode,
         // VideoEncode,
         // OpticalFlow
+    };
+
+    enum class Vk_GpuTargetOp {
+        Graphics = static_cast<int>(Vk_GpuOp::Graphics),
+        Compute = static_cast<int>(Vk_GpuOp::Compute),
+        Transfer = static_cast<int>(Vk_GpuOp::Transfer),
+        Auto /* Default so far => TODO: at some point make this one work selectively */
     };
 
     static std::string Vk_GpuOp2String(const Vk_GpuOp& type){

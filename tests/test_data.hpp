@@ -1,11 +1,7 @@
 #pragma once
 
 #include <vector>
-#ifdef TEST_SCENARIO_1
-	#include "../src/objects/Vk_Structures.hpp"
-#else
-	#include "vkviewer.hpp"
-#endif
+#include "../src/buffers/Vk_Structures.hpp"
 
 namespace UT{
 	namespace VK5TestData {
