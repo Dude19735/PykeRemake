@@ -104,13 +104,13 @@ elseif(WIN32)
 endif()
 
 ##########################################################################################################
-if(UNIX)
-    # x11 test window
-    add_executable(lwws "src/lwws_win/main.cpp")
-    target_include_directories(
-        lwws PRIVATE ${PROJECT_SOURCE_DIR} ${X11_INCLUDE_DIR} #${EGL_INCLUDE_DIRS}
-    )
-    target_link_libraries(
-        lwws ${X11_LIBRARIES} #${EGL_LIBRARIES}
-    )
-endif()
+# if(UNIX)
+#     # x11 test window
+#     add_executable(lwws "src/lwws_win/main.cpp")
+#     target_include_directories(
+#         lwws PRIVATE ${PROJECT_SOURCE_DIR} ${X11_INCLUDE_DIR} #${EGL_INCLUDE_DIRS}
+#     )
+#     target_link_libraries(
+#         lwws ${X11_LIBRARIES} #${EGL_LIBRARIES}
+#     )
+# endif()

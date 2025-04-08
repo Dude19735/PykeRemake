@@ -27,6 +27,7 @@ namespace VK5{
             if(this == &other) return *this;
             _vkDevice = other._vkDevice;
             other._vkDevice = nullptr;
+            return *this;
         }
 
         ~Vk_LogicalDevice(){

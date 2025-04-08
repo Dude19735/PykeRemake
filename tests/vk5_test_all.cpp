@@ -43,6 +43,6 @@
 #endif
 
 // #include "vk5_test_terminal_colors.cpp"
-// #include "vk5_test_viewer.cpp"
-#include "vk5_test_device.cpp"
+#include "vk5_test_viewer.cpp"
+// #include "vk5_test_device.cpp"
 // #include "vk5_test_data_buffers.cpp"
